@@ -1,0 +1,304 @@
+01 Kiva Loans: Preprocessing
+=============================
+
+In this Rmd file, we do some some very minimal exploration of our JSON loan files, along with a bit of preprocessing and file concatenation, before moving on to more serious exploratory data analysis in the next file.
+
+# File loading & field selection
+
+```{r, warning=FALSE, message=FALSE}
+# load some packages
+library(jsonlite)
+library(knitr)
+
+# load a sample json file
+loan001 = jsonlite::fromJSON("data/1.json")
+```
+
+What are we dealing with? Let's take a peek.
+
+```{r, warning=FALSE, message=FALSE}
+summary(loan001)
+names(loan001$header)
+names(loan001$loans)
+#head(loan001)
+```
+
+We've got some basic information on the JSON file in the header. The real data of interest are in the loans object, which has some 25+ fields, along with quite a bit of nested structure. (It's too much to print out here.) Let's flatten the loan object.
+
+```{r, warning=FALSE, message=FALSE}
+flatloan001 = jsonlite::flatten(loan001$loans, recursive=TRUE)
+names(flatloan001)
+#head(flatloan001)
+```
+
+Which of these fields should we investigate? First, for the sake of mental compartmentalization, we can think of these fields as falling into four different categories, each of which is one step in a loan pipeline:
+
+1. **Loan initialization** -- Here, we can put data on the loan amount, the request date, the sector and nature of the loan, demographic information about the borrowers, metadata on the description, and so forth.
+2. **Lending step** -- Here, we put data on the number of lenders, the "partners" involved in the loan, and the funding date.
+3. **Disbursal step** -- Here, we put any data on the date that the funds were disbursed.
+4. **Repayment step** -- Here, we can put any data on how the loan was paid back: scheduled payments, actual payments, and currency exchange losses.
+
+We will focus our analysis on two different types of questions:
+
+1. **What are the intra-relationships among loan initialization features?** Questions of this type will allow us to understand how loans vary from country to country, demographic to demographic, how descriptions relate to loan amounts, and so forth. 
+2. **What are the inter-relationships between loan initialization features and features down the pipeline?** Questions of this type will allow us to ask how the features of the loan -- amount, country, demographics -- relate to how that loan is funded, disbursed, and repaid.
+
+We want to pare down the initial field set, if possible. A look at [Kiva's documentation](http://build.kiva.org/docs/data/loans) and a scan of the JSON suggest the following fields will be interesting and easy enough to work with:
+
+ [1] "id"                                  
+ [3] "status" -- status of the loan                            
+ [9] "sector" -- broad category for nature of the loan (e.g. Faming)                                          
+[13] "partner_id" -- id of intermediate partner (not lender)                                         
+[14] "posted_date" -- date when loan was publicized for lenders                                        
+[17] "lender_count" -- number of lenders in on loan                                          
+[21] "borrowers" -- names and genders of borrower(s)                                            
+[23] "funded_date" -- date when loan was covered by lenders                                         
+[24] "paid_date" -- date when loan was repaid by borrower                                           
+[25] "description.languages" -- list of languages that description is in                               
+[26] "description.texts.en"                                
+[27] "description.texts.es"                                
+[28] "description.texts.id"                                
+[29] "description.texts.fr"                                
+[30] "description.texts.ru"                                
+[31] "description.texts.vi"                                   
+[34] "location.country_code" -- country code of borrower                                   
+[40] "terms.disbursal_date" -- date when loan money was given to borrower                           
+[45] "terms.loan_amount" -- amount of loan in USD
+
+Before we begin exploring in earnest, though, let's do a few more preprocessing maneuvers.
+
+# Description data
+
+The `description` fields contain raw text that describe the loans to potential lenders. Doing anything useful with the content of that text will be tricky, but a simple feature we can extract from these descriptions is the number of characters they contain. Let's average that value over the number of languages that the loan description appears in.
+
+```{r, warning=FALSE, message=FALSE}
+for (i in 1:dim(flatloan001)[1]){
+  flatloan001$description.avgchar[i] = sum(nchar(flatloan001[i,26:31])) / 
+    sapply(flatloan001[i,25], length)
+}
+```
+
+With this, we can drop the individual description fields (for now). 
+
+# Date transformations
+
+Let's get the dates into the proper format.
+
+```{r, warning=FALSE, message=FALSE}
+flatloan001$posted_datetime = as.POSIXct(flatloan001$posted_date, 
+                                         format = "%Y-%m-%dT%H:%M:%SZ")
+flatloan001$funded_datetime = as.POSIXct(flatloan001$funded_date, 
+                                         format = "%Y-%m-%dT%H:%M:%SZ")
+flatloan001$paid_datetime = as.POSIXct(flatloan001$paid_date, 
+                                         format = "%Y-%m-%dT%H:%M:%SZ")
+flatloan001$disbursal_datetime = as.POSIXct(flatloan001$terms.disbursal_date, 
+                                         format = "%Y-%m-%dT%H:%M:%SZ")
+```
+
+Obvious quantities of interest are how long it took for certain steps in the pipeline to happen. How long after a loan was posted did it get funded? How long after that did it get disbursed? How long after that did it get paid back by the borrower? We can create some features for easy access.
+
+```{r, warning=FALSE, message=FALSE}
+flatloan001$funded_timediff = difftime(flatloan001$funded_datetime, 
+                                       flatloan001$posted_datetime, units="days")
+flatloan001$disbursed_timediff = difftime(flatloan001$disbursal_datetime,
+                                          flatloan001$funded_datetime, units="days")
+flatloan001$paid_timediff = difftime(flatloan001$paid_datetime,
+                                     flatloan001$disbursal_datetime, units="days")
+```
+
+We observe here that some of the disbursed_timediff's are negative. These negative values seems nonsensical -- how can a loan be funded before it's posted? -- but one of [Kiva's stated practices](http://www.kiva.org/about/how/even-more) is to "pre-disburse" loans, meaning that the funds are already disbursed to borrowers before the loans are posted, viewed, and "funded" by Kiva lenders. Determining which loans have pre-disbursed, partially or wholly, seems like it can be determined only by our new timediff variable. If we wish to be cautious, we should consider divorcing the posting and funding steps from the rest of the temporal pipeline. In other words, we should be able to relate when a loan was **posted** (by Kiva) meaningfully to when it was **funded** (by lenders), and when a loan was **disbursed** (by partners) meaningfully to when it was **paid** (by borrowers), but it would take some acrobatic guesswork to connect the posting and funding steps to the disbursal and repayment steps.
+
+# Borrower data
+
+Glancing at the `borrowers` field, we see some interesting nested data:
+
+```{r, warning=FALSE, message=FALSE}
+head(flatloan001$borrowers)
+```
+
+In particular, we might ask how gender and photographs impact the loan pipeline. Are lenders more or less likely to lend money based on a borrower's gender? Do photos make a difference?
+
+```{r, warning=FALSE, message=FALSE}
+for (i in 1:dim(flatloan001)[1]){
+  df = as.data.frame(flatloan001$borrowers[i])
+  borr.count = dim(df)[1]
+  borr.gender = 0
+  borr.pictured = 0
+  for (j in 1:borr.count){
+    if (df$gender[j] == "F") {
+      borr.gender = borr.gender + 1
+      }
+    if (df$pictured[j] == "TRUE") {
+      borr.pictured = borr.pictured + 1
+      }
+  }
+  flatloan001$b.num[i] = borr.count
+  flatloan001$b.female[i] = borr.gender / borr.count
+  flatloan001$b.pictured[i] = borr.pictured / borr.count
+}
+```
+
+But how common is it to not have a picture?
+
+```{r, warning=FALSE, message=FALSE}
+summary(flatloan001$b.pictured)
+```
+
+Very uncommon. This won't be a useful feature. On the other hand, there is more variety when it comes to gender.
+
+```{r, warning=FALSE, message=FALSE}
+summary(flatloan001$b.gender)
+```
+
+# Preprocessing function chain
+
+We can now create a list of the fields we want to subset.
+
+```{r, warning=FALSE, message=FALSE}
+names(flatloan001)
+```
+
+ [1] "id"                                  
+ [3] "status" -- status of the loan                            
+ [9] "sector" -- broad category for nature of the loan (e.g. Faming)                                          
+[13] "partner_id" -- id of intermediate partner (not lender)                                        
+[17] "lender_count" -- number of lenders in on loan                                             
+[25] "description.languages" -- list of languages that description is in                                                                
+[34] "location.country_code" -- country code of borrower                           
+[45] "terms.loan_amount" -- amount of loan in USD             
+[55] "description.avgchar"                                 
+[56] "posted_datetime"                                     
+[57] "funded_datetime"                                     
+[58] "paid_datetime"                                       
+[59] "disbursal_datetime"                                  
+[60] "funded_timediff"                                     
+[61] "disbursed_timediff"                                  
+[62] "paid_timediff"                                       
+[63] "b.num"                                               
+[64] "b.female"
+
+```{r, warning=FALSE, message=FALSE}
+fieldlist = c(1, 3, 9, 13, 17, 25, 34, 45, 55:64)
+pared_flatloan001 = flatloan001[, fieldlist]
+```
+
+Next, we want to chain our preprocessing steps into a function that we can call on all the other JSON files in our directory.
+
+```{r}
+# mean description character function
+describe_char = function(loandf) {
+  for (i in 1:dim(loandf)[1]) {
+    loandf$description.avgchar[i] = sum(nchar(loandf[i,26:31])) / sapply(loandf[i,25], length)
+  }
+  return(loandf)
+}
+
+# date functions
+date_transf = function(loandf) {
+  # datetime conversions
+  loandf$posted_datetime = as.POSIXct(loandf$posted_date, 
+                                         format = "%Y-%m-%dT%H:%M:%SZ")
+  loandf$funded_datetime = as.POSIXct(loandf$funded_date, 
+                                         format = "%Y-%m-%dT%H:%M:%SZ")
+  loandf$paid_datetime = as.POSIXct(loandf$paid_date, 
+                                         format = "%Y-%m-%dT%H:%M:%SZ")
+  loandf$disbursal_datetime = as.POSIXct(loandf$terms.disbursal_date, 
+                                         format = "%Y-%m-%dT%H:%M:%SZ")
+  
+  # timediff features
+  loandf$funded_timediff = difftime(loandf$funded_datetime, 
+                                       loandf$posted_datetime, units="days")
+  loandfdisbursed_timediff = difftime(loandf$disbursal_datetime,
+                                          loandf$funded_datetime, units="days")
+  loandf$paid_timediff = difftime(loandf$paid_datetime,
+                                     loandf$disbursal_datetime, units="days")
+  return(loandf)
+}
+
+# borrowers functions
+borrow_transf = function(loandf) {
+  for (i in 1:dim(loandf)[1]){
+    df = as.data.frame(loandf$borrowers[i])
+    borr.count = dim(df)[1]
+    borr.gender = 0
+    borr.pictured = 0
+    for (j in 1:borr.count){
+      if (df$gender[j] == "F") {
+        borr.gender = borr.gender + 1
+        }
+      if (df$pictured[j] == "TRUE") {
+        borr.pictured = borr.pictured + 1
+        }
+    }
+    loandf$b.num[i] = borr.count
+    loandf$b.female[i] = borr.gender / borr.count
+    loandf$b.pictured[i] = borr.pictured / borr.count
+  }
+  return(loandf)
+}
+
+# composite preprocessing function
+loan_preprocessing = function(jsonfile) {
+  # load and flatten
+  loanfile = jsonlite::fromJSON(paste0("data/", jsonfile))
+  flatloan = jsonlite::flatten(loanfile$loans, recursive=TRUE)
+  flatloan = describe_char(flatloan)
+  flatloan = date_transf(flatloan)
+  flatloan = borrow_transf(flatloan)
+  fieldlist = c(1, 3, 9, 13, 17, 25, 34, 45, 55:64)
+  pared_flatloan = flatloan001[, fieldlist]
+  return(pared_flatloan)
+}
+```
+
+Did that work? Let's test it on our original file first:
+
+```{r, warning=FALSE, message=FALSE}
+testpare001 = loan_preprocessing("1.json")
+```
+
+It did. Now let's test it on a new file:
+
+```{r, warning=FALSE, message=FALSE}
+testpare002 = loan_preprocessing("2.json")
+```
+
+Smooth sailing. We'll now loop through all the files in the directory, run the function on them, and concatenate them into one dataframe.
+
+# File concatenation and sampling
+
+```{r, warning=FALSE, message=FALSE}
+bound_df = loan_preprocessing("1.json")
+files = list.files(path=paste0(getwd(), "/data/"))
+for (file in files){
+  new_df = loan_preprocessing(file)
+  new_bind = rbind(bound_df, new_df) 
+  bound_df = new_bind
+}
+```
+
+Now we have a 152,000 x 18 dataframe with all loans and all preliminary variables of interest. To make the next phase of data analysis speedier, let's sample 10% of this data. Any inferences we make or predictive models we build can then be held up for inspection against the full data set.
+
+```{r, warning=FALSE, message=FALSE}
+set.seed(1)
+sample_rows = sample(dim(bound_df)[1], 15000) 
+sample_df = bound_df[sample_rows,]
+```
+
+Finally, we'll export these dataframes as files for use elsewhere. We have to turn our difftime objects into regular numeric expressions first, though.
+
+```{r, warning=FALSE, message=FALSE}
+# sample
+sample_df$funded_timediff = as.numeric(sample_df$funded_timediff)
+sample_df$disbursed_timediff = as.numeric(sample_df$disbursed_timediff)
+sample_df$paid_timediff = as.numeric(sample_df$paid_timediff)
+loan_sample = jsonlite::toJSON(sample_df) 
+write(loan_sample, file="loan_sample.json")
+
+# full
+bound_df$funded_timediff = as.numeric(bound_df$funded_timediff)
+bound_df$disbursed_timediff = as.numeric(bound_df$disbursed_timediff)
+bound_df$paid_timediff = as.numeric(bound_df$paid_timediff)
+loan_full = jsonlite::toJSON(bound_df)
+write(loan_full, file="loan_full.json")
+```
