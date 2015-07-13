@@ -1,0 +1,150 @@
+02 Kiva Loans: Exploratory Data Analysis
+=============================
+
+In this Rmd file, we take our processed Kiva loan file, which is a sample of the full dataset, and try to answer some basic questions. Because we're working only with a sample, we'll concern ourselves with sample statistics (e.g. lenders per loan), relative comparisons, rates, and trends, but not with global counts (e.g. loans per year).
+
+We have two basic types of questions that we're interested in:
+
+1. **What are the intra-relationships among loan initialization features?** Questions of this type will allow us to understand how loans vary from country to country, demographic to demographic, how descriptions relate to loan amounts, and so forth. 
+2. **What are the inter-relationships between loan initialization features and features down the pipeline?** Questions of this type will allow us to ask how the features of the loan -- amount, country, demographics -- relate to how that loan is funded, disbursed, and repaid.
+
+Let's load the file and get going.
+
+```{r}
+library(jsonlite)
+loans = jsonlite::fromJSON("loan_sample.json")
+```
+
+# 1. Univariate EDA
+
+## Missing data
+
+First, let's just note that we do have some missing data.
+
+```{r}
+sum(is.na(loans)) / (15000*18)
+```
+
+Roughly 1% of the data in the sample are missing. Which fields have the most missing data?
+
+```{r}
+apply(apply(loans, 2, is.na), 2, mean)
+```
+
+All of the missing data occurs in date-related fields. This suggests we'll encounter NA's whenever we have breakages in the loan pipeline -- for example, when a loan doesn't get disbursed or doesn't get repaid.
+
+Let's take a look at all the variables in our sampled loan file.
+
+## Status
+
+```{r}
+summary(as.factor(loans[,2]))
+```
+
+Of the 15,000 loans in the sample, the vast majority (14197/15000 = 95%) have been paid back. We could restrict our analysis to the loans that have made it through the pipeline, since one could argue that everything else is in some sense "bad data"; on the other hand, it could be interesting to characterize the loans that didn't get paid back and see whether there are any noticeable patterns.  
+
+Does the missing data have any relation to loan status?
+
+```{r}
+apply(apply(loans[loans$status == "paid",], 2, is.na), 2, mean)
+sum(apply(apply(loans[loans$status == "paid",], 2, is.na), 2, mean)) / (14197*18)
+```
+
+Yes, there's hardly any missing data when we look only at repaid loans.
+
+## Sector
+
+```{r}
+summary(as.factor(loans[,3]))
+qplot(as.factor(loans[,3]))
+```
+
+Most of the loans are going to food, retail, and agriculture uses.
+
+## Partner ID
+
+```{r}
+qplot(as.factor(loans[,4]))
+
+partners = table(as.factor(loans[,4]))
+mean(partners); sd(partners)
+```
+
+We see a lot of different partners with a large variance in their loan activity.
+
+## Lender count
+
+```{r}
+summary(loans[,5])
+```
+
+The median loan has 17 lenders, and the mean isn't much greater than that. We see a few loans with a large number of lenders. As a quick check -- is the loan with the most lenders also the loan with the greatest dollar amount?
+
+```{r}
+which.max(loans[,5]) == which.max(loans$terms.loan_amount)
+```
+
+## Countries
+
+We have 49 unique countries in our sample (and probably more in the full dataset). Some claim a disproportionate number of the loans:
+
+```{r}
+qplot(as.factor(loans$location.country_code))
+table(as.factor(loans$location.country_code))
+```
+
+The x-axis shows [country code](https://en.wikipedia.org/wiki/ISO_3166-1). The top 3 borrowers are The Philippines (PH), Peru (PE), and Cambodia (KH). The bottom 3 are Jordan (JO), the Ivory Coast (CI), and Congo (CD).
+
+## Languages
+
+How many different languages do descriptions come in?
+
+```{r}
+qplot(as.factor(sapply(loans[,6], length)))
+```
+
+There are only 1 or 2 languages per description as a rule. Which languages are most prevalent?
+
+```{r}
+qplot(as.factor(unlist(loans[,6])))
+table(as.factor(unlist(loans[,6])))
+```
+
+English is by far the most common, though Spanish is in the same ballpark. French, Russian, and Vietnamese are far less common, as is [Indonesian](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes).
+
+## Description length
+
+How many characters do we average per description?
+
+```{r}
+qplot(loans$description.avgchar)
+summary(loans$description.avgchar)
+```
+
+We see a postively skewed distribution here. There's one clear outlier at around 6000 characters. (Remember that we have averaged over languages, so this isn't the effect of lots of translations.) Let's take a quick look at this data point:
+
+```{r}
+loans[which.max(loans$description.avgchar),]
+```
+
+There doesn't seem to be anything special going on here. We could peek at the raw data to see whether the description reveals anything of interest, but let's forgo that for now.
+
+## Borrower data
+
+We have two pieces of data regarding the borrowers: their number and the fraction who are female.
+
+```{r}
+qplot(loans$b.num)
+summary(loans$b.num)
+```
+
+Clearly, the majority of loans are going to a single borrower, but a non-negligible number of loans goes to multiple borrowers. It will be interesting to see how this affects lender behavior.
+
+What about gender?
+
+```{r}
+qplot(loans$b.female)
+summary(loans$b.female)
+```
+
+Most of the loans are going to females, or all-female groups, though about 20% go to males, or all-male groups. Because most loans go to single borrowers, we don't see many mixed-gender borrowing groups.
