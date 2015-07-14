@@ -12,7 +12,16 @@ Let's load the file and get going.
 
 ```{r}
 library(jsonlite)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+
 loans = jsonlite::fromJSON("loan_sample.json")
+
+loans$posted_datetime = strptime(loans$posted_datetime, format = "%Y-%m-%d %H:%M:%S")
+loans$funded_datetime = strptime(loans$funded_datetime, format = "%Y-%m-%d %H:%M:%S")
+loans$disbursal_datetime = strptime(loans$disbursal_datetime, format = "%Y-%m-%d %H:%M:%S")
+loans$paid_datetime = strptime(loans$paid_datetime, format = "%Y-%m-%d %H:%M:%S")
 ```
 
 # 1. Univariate EDA
@@ -75,6 +84,7 @@ We see a lot of different partners with a large variance in their loan activity.
 ## Lender count
 
 ```{r}
+qplot(loans[,5])
 summary(loans[,5])
 ```
 
@@ -83,6 +93,8 @@ The median loan has 17 lenders, and the mean isn't much greater than that. We se
 ```{r}
 which.max(loans[,5]) == which.max(loans$terms.loan_amount)
 ```
+
+It is.
 
 ## Countries
 
@@ -127,7 +139,7 @@ We see a postively skewed distribution here. There's one clear outlier at around
 loans[which.max(loans$description.avgchar),]
 ```
 
-There doesn't seem to be anything special going on here. We could peek at the raw data to see whether the description reveals anything of interest, but let's forgo that for now.
+There doesn't seem to be anything unusual going on here. We could peek at the raw data to see whether the description reveals anything of interest, but let's forgo that for now.
 
 ## Borrower data
 
@@ -148,3 +160,74 @@ summary(loans$b.female)
 ```
 
 Most of the loans are going to females, or all-female groups, though about 20% go to males, or all-male groups. Because most loans go to single borrowers, we don't see many mixed-gender borrowing groups.
+
+## Loan amount
+
+What is the distribution of loan amounts (in USD)?
+
+```{r}
+qplot(loans$terms.loan_amount)
+summary(loans$terms.loan_amount)
+```
+
+The median and mean are both under 1000 USD, but there is a long tail of loan amount snaking out to 5000 USD. We may wish to consider treating these loans as a separate class and investigate what their properties are.
+
+## Pipeline time differences
+
+Let's now look at the time differences between sequential steps in the pipeline: from posting to funding, from funding to disbursal, and from disbursal to repayment. For these profiles, we'll subset our sample, looking only at loans that were repaid.
+
+```{r}
+repaid = loans[loans$status == "paid", ]
+```
+
+### Time to funding
+
+The `funded_timediff` variable accounts for the time difference between when a loan was posted on Kiva and when it was funded by users.
+
+```{r}
+qplot(repaid$funded_timediff)
+summary(repaid$funded_timediff)
+```
+
+The median loan is funded by lenders in less than a day, and the first quartile is funded in 0.18 days, or about 4.3 hours! This is somewhat surprising, but we can re-interpret the median figure in terms that sound reasonable. Given that the median loan is 550 USD and the median number of lenders is 17, this means that for the median loans, 17 lenders laon 550 / 17 = 32.35 within the span of a day. Although we don't know the country codes of the lenders, for a developed nation, this doesn't sound unreasonable.
+
+### Time to disbursal
+
+The `disbursal_timediff` variable accounts for the time difference between when a loan was funded by lenders and when it was disbursed to borrowers. We observed earlier that many of the disbursal time differences were negative, indicating that the funds had been "pre-disbursed" -- that is, given to borrowers before they were funded by Kiva lenders, due to urgent needs. That presents a wrinkle for any sort of supply chain analysis. Nevertheless, let's take a look at the distribution for this variable.
+
+```{r}
+qplot(repaid$disbursed_timediff)
+summary(repaid$disbursed_timediff)
+```
+
+So it seems that *most* loans were disbursed before they were posted, not just some. Another wrinkle is the maximum at t = 30.51 days. This value is close enough to the average number of days per month (366/12 = 30.5) to seem like an artifact of record keeping, and the sharpness of the peak reinforces that suspicion. We have another reason now to exclude this variable.  
+
+### Time to repayment
+
+The `paid_timediff` variable accounts for the time difference between when a loan was disbursed to a borrower and when it was repaid. 
+
+```{r}
+qplot(repaid$paid_timediff)
+summary(repaid$paid_timediff)
+```
+
+Looking at the IQR, we see that most loans are repaid in the 7-10 month range, though some take as long as 3+ years. We could consider segmenting by repayment time.
+
+## Times
+
+Finally, we can look at plots of the times themselves.
+
+```{r}
+p1 = ggplot(data=repaid, aes(x=posted_datetime)) + geom_histogram(aes(y=..density..)) +
+  geom_density(col=2)
+p2 = ggplot(data=repaid, aes(x=funded_datetime)) + geom_histogram(aes(y=..density..)) +
+  geom_density(col=3)
+p3 = ggplot(data=repaid, aes(x=disbursal_datetime)) + geom_histogram(aes(y=..density..)) +
+  geom_density(col=4)
+p4 = ggplot(data=repaid, aes(x=paid_datetime)) + geom_histogram(aes(y=..density..)) +
+  geom_density(col=5)
+
+grid.arrange(p1, p2, p3, p4, ncol = 1)
+```
+
+Nothing too surprising here. We see a general trend of more loans per year across all time plots. The `paid_datetime` plot lags behind the others and extends into 2014, but we would expect that since repayment is the last link in the supply chain.
