@@ -171,12 +171,24 @@ names(flatloan001)</code></pre>
 <p>[1] “id”<br /> [3] “status” – status of the loan<br /> [9] “sector” – broad category for nature of the loan (e.g. Faming)<br />[13] “partner_id” – id of intermediate partner (not lender)<br />[14] “posted_date” – date when loan was publicized for lenders<br />[17] “lender_count” – number of lenders in on loan<br />[21] “borrowers” – names and genders of borrower(s)<br />[23] “funded_date” – date when loan was covered by lenders<br />[24] “paid_date” – date when loan was repaid by borrower<br />[25] “description.languages” – list of languages that description is in<br />[26] “description.texts.en”<br />[27] “description.texts.es”<br />[28] “description.texts.id”<br />[29] “description.texts.fr”<br />[30] “description.texts.ru”<br />[31] “description.texts.vi”<br />[34] “location.country_code” – country code of borrower<br />[40] “terms.disbursal_date” – date when loan money was given to borrower<br />[45] “terms.loan_amount” – amount of loan in USD</p>
 <p>Before we begin exploring in earnest, though, let’s do a few more preprocessing maneuvers.</p>
 </div>
+<div id="ids-and-duplicates" class="section level1">
+<h1>IDs and duplicates</h1>
+<pre class="r"><code>sum(duplicated(flatloan001$id))</code></pre>
+<pre><code>## [1] 0</code></pre>
+<p>We have no duplicate loan IDs.</p>
+</div>
 <div id="description-data" class="section level1">
 <h1>Description data</h1>
 <p>The <code>description</code> fields contain raw text that describe the loans to potential lenders. Doing anything useful with the content of that text will be tricky, but a simple feature we can extract from these descriptions is the number of characters they contain. Let’s average that value over the number of languages that the loan description appears in.</p>
-<pre class="r"><code>for (i in 1:dim(flatloan001)[1]){
-  flatloan001$description.avgchar[i] = sum(nchar(flatloan001[i,26:31])) / 
-    sapply(flatloan001[i,25], length)
+<pre class="r"><code>langs = unique(unlist(flatloan001$description.languages))
+full.lang = character(length=0)
+for (lang in langs){
+  full.lang = c(full.lang, paste0(&quot;description.texts.&quot;, lang))
+}
+
+for (i in 1:dim(flatloan001)[1]){
+  flatloan001$description.avgchar[i] = sum(nchar(flatloan001[i,full.lang])) / 
+    sapply(flatloan001[i,&quot;description.languages&quot;], length)
 }</code></pre>
 <p>With this, we can drop the individual description fields (for now).</p>
 </div>
@@ -324,13 +336,27 @@ flatloan001$paid_timediff = difftime(flatloan001$paid_datetime,
 ## [64] &quot;b.female&quot;                                            
 ## [65] &quot;b.pictured&quot;</code></pre>
 <p>[1] “id”<br /> [3] “status” – status of the loan<br /> [9] “sector” – broad category for nature of the loan (e.g. Faming)<br />[13] “partner_id” – id of intermediate partner (not lender)<br />[17] “lender_count” – number of lenders in on loan<br />[25] “description.languages” – list of languages that description is in<br />[34] “location.country_code” – country code of borrower<br />[45] “terms.loan_amount” – amount of loan in USD<br />[55] “description.avgchar”<br />[56] “posted_datetime”<br />[57] “funded_datetime”<br />[58] “paid_datetime”<br />[59] “disbursal_datetime”<br />[60] “funded_timediff”<br />[61] “disbursed_timediff”<br />[62] “paid_timediff”<br />[63] “b.num”<br />[64] “b.female”</p>
-<pre class="r"><code>fieldlist = c(1, 3, 9, 13, 17, 25, 34, 45, 55:64)
+<pre class="r"><code>fieldlist = c(&quot;id&quot;, &quot;status&quot;, &quot;sector&quot;, &quot;partner_id&quot;, &quot;lender_count&quot;,
+                &quot;description.languages&quot;, &quot;location.country_code&quot;, 
+                &quot;terms.loan_amount&quot;, &quot;description.avgchar&quot;, 
+                &quot;posted_datetime&quot;, &quot;funded_datetime&quot;, 
+                &quot;paid_datetime&quot;, &quot;disbursal_datetime&quot;, 
+                &quot;funded_timediff&quot;, &quot;disbursed_timediff&quot;, &quot;paid_timediff&quot;,
+                &quot;b.num&quot;, &quot;b.female&quot;)
 pared_flatloan001 = flatloan001[, fieldlist]</code></pre>
 <p>Next, we want to chain our preprocessing steps into a function that we can call on all the other JSON files in our directory.</p>
 <pre class="r"><code># mean description character function
 describe_char = function(loandf) {
-  for (i in 1:dim(loandf)[1]) {
-    loandf$description.avgchar[i] = sum(nchar(loandf[i,26:31])) / sapply(loandf[i,25], length)
+  df.langs = unique(unlist(loandf$description.languages))
+  df.full.lang = character(length=0)
+  
+  for (df.lang in df.langs){
+    df.full.lang = c(df.full.lang, paste0(&quot;description.texts.&quot;, df.lang))
+  }
+
+  for (i in 1:dim(loandf)[1]){
+    loandf$description.avgchar[i] = sum(nchar(loandf[i, df.full.lang])) / 
+      sapply(loandf[i,&quot;description.languages&quot;], length)
   }
   return(loandf)
 }
@@ -350,7 +376,7 @@ date_transf = function(loandf) {
   # timediff features
   loandf$funded_timediff = difftime(loandf$funded_datetime, 
                                        loandf$posted_datetime, units=&quot;days&quot;)
-  loandfdisbursed_timediff = difftime(loandf$disbursal_datetime,
+  loandf$disbursed_timediff = difftime(loandf$disbursal_datetime,
                                           loandf$funded_datetime, units=&quot;days&quot;)
   loandf$paid_timediff = difftime(loandf$paid_datetime,
                                      loandf$disbursal_datetime, units=&quot;days&quot;)
@@ -381,32 +407,41 @@ borrow_transf = function(loandf) {
 
 # composite preprocessing function
 loan_preprocessing = function(jsonfile) {
-  # load and flatten
   loanfile = jsonlite::fromJSON(paste0(&quot;data/&quot;, jsonfile))
   flatloan = jsonlite::flatten(loanfile$loans, recursive=TRUE)
   flatloan = describe_char(flatloan)
   flatloan = date_transf(flatloan)
   flatloan = borrow_transf(flatloan)
-  fieldlist = c(1, 3, 9, 13, 17, 25, 34, 45, 55:64)
-  pared_flatloan = flatloan001[, fieldlist]
+  fieldlist = c(&quot;id&quot;, &quot;status&quot;, &quot;sector&quot;, &quot;partner_id&quot;, &quot;lender_count&quot;,
+                &quot;description.languages&quot;, &quot;location.country_code&quot;, 
+                &quot;terms.loan_amount&quot;, &quot;description.avgchar&quot;, 
+                &quot;posted_datetime&quot;, &quot;funded_datetime&quot;, 
+                &quot;paid_datetime&quot;, &quot;disbursal_datetime&quot;, 
+                &quot;funded_timediff&quot;, &quot;disbursed_timediff&quot;, &quot;paid_timediff&quot;,
+                &quot;b.num&quot;, &quot;b.female&quot;)
+  pared_flatloan = flatloan[, fieldlist]
   return(pared_flatloan)
 }</code></pre>
 <p>Did that work? Let’s test it on our original file first:</p>
 <pre class="r"><code>testpare001 = loan_preprocessing(&quot;1.json&quot;)</code></pre>
 <p>It did. Now let’s test it on a new file:</p>
-<pre class="r"><code>testpare002 = loan_preprocessing(&quot;2.json&quot;)</code></pre>
-<p>Smooth sailing. We’ll now loop through all the files in the directory, run the function on them, and concatenate them into one dataframe.</p>
+<pre class="r"><code>testpare002 = loan_preprocessing(&quot;72.json&quot;)</code></pre>
+<p>Smooth sailing. We’ll now loop through all the files in the directory, run the preprocessing function on them, and concatenate them into one dataframe.</p>
 </div>
 <div id="file-concatenation-and-sampling" class="section level1">
 <h1>File concatenation and sampling</h1>
 <pre class="r"><code>bound_df = loan_preprocessing(&quot;1.json&quot;)
 files = list.files(path=paste0(getwd(), &quot;/data/&quot;))
-for (file in files){
+for (file in files[-1]){
   new_df = loan_preprocessing(file)
   new_bind = rbind(bound_df, new_df) 
   bound_df = new_bind
 }</code></pre>
-<p>Now we have a 152,000 x 18 dataframe with all loans and all preliminary variables of interest. To make the next phase of data analysis speedier, let’s sample 10% of this data. Any inferences we make or predictive models we build can then be held up for inspection against the full data set.</p>
+<p>Now we have a 152,000 x 18 dataframe with all loans and all preliminary variables of interest. The fact that no exceptions were thrown suggests that all the other JSON files were similarly formatted. One thing that we should confirm, though, is that we have no duplicate records.</p>
+<pre class="r"><code>sum(duplicated(bound_df$id))</code></pre>
+<pre><code>## [1] 0</code></pre>
+<p>Good: no duplicates.</p>
+<p>To make the next phase of data analysis speedier, let’s sample 10% of this data. Any inferences we make or predictive models we build can then be held up for inspection against the full data set.</p>
 <pre class="r"><code>set.seed(1)
 sample_rows = sample(dim(bound_df)[1], 15000) 
 sample_df = bound_df[sample_rows,]</code></pre>
