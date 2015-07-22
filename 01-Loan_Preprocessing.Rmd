@@ -1,7 +1,7 @@
 01 Kiva Loans: Preprocessing
 =============================
 
-In this Rmd file, we do some some very minimal exploration of our JSON loan files, along with a bit of preprocessing and file concatenation, before moving on to more serious exploratory data analysis in the next file.
+In this file, we do some some very minimal exploration of our JSON loan files, along with a bit of preprocessing and file concatenation, before moving on to more serious exploratory data analysis in the next file.
 
 # File loading & field selection
 
@@ -40,8 +40,8 @@ Which of these fields should we investigate? First, for the sake of mental compa
 
 We will focus our analysis on two different types of questions:
 
-1. **What are the intra-relationships among loan initialization features?** Questions of this type will allow us to understand how loans vary from country to country, demographic to demographic, how descriptions relate to loan amounts, and so forth. 
-2. **What are the inter-relationships between loan initialization features and features down the pipeline?** Questions of this type will allow us to ask how the features of the loan -- amount, country, demographics -- relate to how that loan is funded, disbursed, and repaid.
+1. **What are the intra-relationships among loan initialization variables?** Questions of this type will lead us toward understanding how loans vary from country to country, demographic to demographic, how descriptions relate to loan amounts, and so forth. 
+2. **What are the inter-relationships between loan initialization variables and variables down the pipeline?** Questions of this type will lead us toward understanding how the features of the loan -- amount, country, demographics -- relate to how that loan is funded, disbursed, and repaid.
 
 We want to pare down the initial field set, if possible. A look at [Kiva's documentation](http://build.kiva.org/docs/data/loans) and a scan of the JSON suggest the following fields will be interesting and easy enough to work with:
 
