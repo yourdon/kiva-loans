@@ -255,7 +255,7 @@ Let's revisit our scatterplot matrix, only now we will add "pipeline features" -
 pairs.panels(loans[, c(8, 9, 17, 18, 5, 14, 15, 16)])
 ```
 
-Recall that we are separating the funding component of the pipeline from the repayment component. That noted, we observe that the loan amount and the funding time are correlated, albeit weakly; this is not surprising. What is somewhat more surprising is the correlation (again, weak) between funding time and gender. This correlation is *negative*, meaning that as the fraction of females in a borrowing group increases, the funding time tends to drop. There are similar trends, though even weaker, between the same variables and the repayment time.
+Recall that we are separating the funding component of the pipeline from the repayment component. That noted, we observe that the loan amount and the funding time are correlated, albeit weakly; this is not surprising. Also not surprising is the correlation between loan amount and lender count, although the strength of it suggests that the individual contribution per loan is effectively fixed. What is somewhat more surprising is the correlation (again, weak) between funding time and gender. This correlation is *negative*, meaning that as the fraction of females in a borrowing group increases, the funding time tends to drop. There are similar trends, though even weaker, between the same variables and the repayment time.
 
 We can confirm that there is a significant difference in the all-male and not-all-male populations when it comes to funding time using a t-test:
 
@@ -399,10 +399,198 @@ ggplot(data=loans07,
 
 From mid-2009 on, the answer is yes: repayment time is increasing. However, there is a *different* unexplained maximum toward the start of recording keeping.
 
+## Rates
+
+We have seen that there is a weak correlation between the loan amount and certain pipeline features, namely how long it takes a loan to get funded and repaid, and a strong correlation between the loan amount and the lender count. It is natural at this point to create certain *rate* variables and see whether more subtle patterns can be detected. We'll consider a funding rate (in USD per day), a repayment rate (in USD per day), a lender rate (in USD per lender), and a borrower rate (in USD per borrower). These variables can help us to discover, for example, whether certain types of loans tend to be associated with a greater individual contribution or a slower repayment rate. 
+
+```{r, warning=FALSE, error=FALSE}
+loans$f.rate = loans$terms.loan_amount / loans$funded_timediff
+loans$l.rate = loans$terms.loan_amount / loans$lender_count
+loans$r.rate = loans$terms.loan_amount / loans$paid_timediff
+loans$b.rate = loans$terms.loan_amount / loans$b.num
+```
+
+We can get some summary statistics for each of our new features:
+
+```{r, warning=FALSE, error=FALSE}
+summary(loans$f.rate)
+```
+
+The median funding rate is 754 USD per day; given that the median loan amount is 550 USD, the median funding time of about 0.71 day is explainable. What's going on with that extreme value? 
+
+```{r, warning=FALSE, error=FALSE}
+loans[which.max(loans$f.rate), ]
+```
+
+Here, we have a modest loan (600 USD) that got fully funded by one lender four minutes after it was posted. This observation reminds us that rates can be unstable.
+
+The median lender rate, meanwhile, is about 30 USD per lender per loan, with an (enforced) minimum of 25 USD.
+
+```{r, warning=FALSE, error=FALSE}
+summary(loans$l.rate)
+loans[which.max(loans$l.rate), ]
+```
+
+The maximum lender rate was for one loan of 2525 USD that was funded by two lenders.
+
+What about the borrower rate?
+
+```{r, warning=FALSE, error=FALSE}
+summary(loans$b.rate)
+```
+
+This distribution ranges much more widely than the lender rate, and we can see from the size of the fourth quartile that it is very positively skewed.
+
+Lastly, we look at the repayment rate.
+
+```{r, warning=FALSE, error=FALSE}
+summary(loans$r.rate)
+```
+
+Some repayment times are negative, as we saw in our univariate analysis; this account for the negative values. Aside from that, we see another positively skewed distribution, with a modest median of 1.92 USD per day.
+
+We can re-examine our correlation matrix with our rates:
+
+```{r, warning=FALSE, error=FALSE}
+pairs.panels(loans[, c(8, 17, 18, 14, 16, 19:22)])
+```
+
+**On the lender side**: The meager correlations we saw earlier between (numerical) loan features and pipeline features vanish when we look at rates. Neither the gender composition of the borrowing group nor the number of borrowers appears related to how quickly a loan is funded or how much each individual gives. The loan amount is also uncorrelated with these rates. (Note that if we remove loans that fall in the unstable upper quartile of funding rates, the correlation between gender and funding rate reappears, weakly, at r = 0.16.) One new relationship that we do see is the weak positive correlation between borrower rate and funding time, but when we compare borrower rate to funding *rate*, there is no correlation. The likely explanation here is that a higher borrower rate (more money per borrower) tends to mean a higher loan amount and thus a longer funding time; but since there is no relationship between loan amount and funding rate, the effect disappears when we consider rates.
+
+These vanishing correlations suggest that if we wish to discover something interesting about how loan characteristics relate to lender behavior, we examine a subset of the loans -- perhaps higher-value loans. As it stands, the value of most loans is small enough relative to the minimum lending amount that they admit a wide variance in lender behavior. Before trying that idea out, we'll look at how country and sector relate to rates, however.
+
+**On the borrower side**: We do notice some strong correlations between repayment rate and loan amount, as well as between repayment rate and number of borrowers. (Loan amount and number of borrowers are themselves strongly correlated, of course.) So larger loans tend to be repaid at a greater rate. There is also a weak negative correlation between borrower rate and gender composition: as the fraction of females in a borrowing group increases, the per-borrower amount tends to decrease. Finally, we note the moderate correlation between the borrower rate and the loan amount. This correlation seems at odds with some other correlations. As the loan amount increases, how can both the number of borrowers and the loan amount per borrower increase? They could, of course, both increase, if each borrower were taking on absolute responsibility, but what seems to be happening here is that there are two sub-populations: multi-borrower groups and single-borrower groups. The former is driving the line of best fit in the plot of borrower number vs. loan amount, while the latter is driving the line of best fit in the plot of borrower rate vs. loan amount. We should consider splitting out these two populations in the future.
+
+Let's now examine how country and sector relate to these rates. 
+
+### Rates by country
+
+We'll begin with country and funding rate.
+
+```{r, warning=FALSE, error=FALSE}
+hc_loans$f.rate = hc_loans$terms.loan_amount / hc_loans$funded_timediff
+hc_loans$l.rate = hc_loans$terms.loan_amount / hc_loans$lender_count
+hc_loans$r.rate = hc_loans$terms.loan_amount / hc_loans$paid_timediff
+hc_loans$b.rate = hc_loans$terms.loan_amount / hc_loans$b.num
+
+ggplot(data=hc_loans, aes(x=location.country_code, y=f.rate, 
+                       fill=get_continent(hc_loans))) + geom_boxplot() + 
+  scale_fill_discrete(name="Continent") + 
+  xlab("Country") + ylab("Funding rate") +  ylim(c(0,3000)) +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
+```
+
+The medians differ by as much as 1000 USD, but the ranges of the IQRs overlap more often than not, suggesting that the effect is due to chance.
+
+What happens when we look at lender rate?
+
+```{r, warning=FALSE, error=FALSE}
+ggplot(data=hc_loans, aes(x=location.country_code, y=l.rate, 
+                       fill=get_continent(hc_loans))) + geom_boxplot() + 
+  scale_fill_discrete(name="Continent") + 
+  xlab("Country") + ylab("Lender rate") +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
+```
+
+Again, low-value loans and 25 USD contributions dominate, so the individual contribution rate doesn't differ much on the basis of the borrower's country.
+
+We move on to borrower rate by country:
+
+```{r, warning=FALSE, error=FALSE}
+ggplot(data=hc_loans, aes(x=location.country_code, y=b.rate, 
+                       fill=get_continent(hc_loans))) + geom_boxplot() + 
+  scale_fill_discrete(name="Continent") + 
+  xlab("Country") + ylab("Borrower rate") +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
+```
+
+We see more variance here. A lot of Asian countries, in particular, have high per-borrower loan amounts. 
+
+Next, we look at repayment rate by country:
+
+```{r, warning=FALSE, error=FALSE}
+ggplot(data=hc_loans, aes(x=location.country_code, y=r.rate, 
+                       fill=get_continent(hc_loans))) + geom_boxplot() + 
+  scale_fill_discrete(name="Continent") + 
+  xlab("Country") + ylab("Repayment rate") +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
+```
+
+Again, there is a fair amount of variance.
+
+For each of these rates, we can quantify how much variance is explained by the borrower's country:
+
+```{r, warning=FALSE, message=FALSE}
+summary.lm(aov(l.rate ~ location.country_code, hc_loans))$adj.r.squared
+summary.lm(aov(f.rate ~ location.country_code, hc_loans))$adj.r.squared
+summary.lm(aov(b.rate ~ location.country_code, hc_loans))$adj.r.squared
+summary.lm(aov(r.rate ~ location.country_code, hc_loans))$adj.r.squared
+```
+
+So a borrower's country does not seem to have much of a relationship to lender rates (0.007) or funding rates (0.01) -- that is, how much each individual lenders give and how much funding per day a loan receives, respectively -- but it does have a moderate relationship to borrower rates (0.42) and a weak relationship to repayment rates (0.16) -- that is, the value of the loan per borrower and how much of a loan is repaid per day, respectively.
+
+### Rates by sector
+
+Does sector have an impact of either of our rates? Again, we begin with the funding rate, excluding the upper quartile:
+
+```{r, warning=FALSE, error=FALSE}
+ggplot(data=loans, aes(x=sector, y=f.rate, 
+                       color=sector)) + geom_boxplot() + 
+  scale_colour_discrete(guide=FALSE) +  
+  xlab("Sector") + ylab("Funding rate") + ylim(c(0,3000)) +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
+```
+
+Some sectors (e.g. entertainment, housing, personal use) definitely get funded more slowly than do others (e.g. arts, education, health). 
+
+Does sector have any impact on the lender rate? We know that 25 USD contributions will dominate, so let's look only at loans that had lender rates above 50 USD per lender.
+
+```{r, warning=FALSE, error=FALSE}
+ggplot(data=loans, aes(x=sector, y=l.rate, 
+                       color=sector)) + geom_boxplot() + 
+  scale_colour_discrete(guide=FALSE) + 
+  xlab("Sector") + ylab("Lending rate") + ylim(c(50, 1000)) +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
+```
+
+The medians are all comparable, though we can see that the most popular sectors -- agriculture, food, and retail -- do inevitably attract some generous lenders. We also notice that no entertainment loans averaged 50 USD per lender o more.
+
+Does sector explain any of the variance in borrower rate?
+
+```{r, warning=FALSE, error=FALSE}
+ggplot(data=loans, aes(x=sector, y=b.rate, 
+                       color=sector)) + geom_boxplot() + 
+  scale_colour_discrete(guide=FALSE) + 
+  xlab("Sector") + ylab("Borrower rate") +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
+```
+
+It doesn't seem to. What about repayment rate?
+
+```{r, warning=FALSE, error=FALSE}
+ggplot(data=loans, aes(x=sector, y=r.rate, 
+                       color=sector)) + geom_boxplot() + 
+  scale_colour_discrete(guide=FALSE) + 
+  xlab("Sector") + ylab("Repayment rate") +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
+```
+
+Again, sector doesn't seem useful. We get numerical estimates:
+
+```{r, warning=FALSE, message=FALSE}
+summary.lm(aov(l.rate ~ sector, loans))$adj.r.squared
+summary.lm(aov(f.rate ~ sector, loans))$adj.r.squared
+summary.lm(aov(b.rate ~ sector, loans))$adj.r.squared
+summary.lm(aov(r.rate ~ sector, loans))$adj.r.squared
+```
+
+All are effectively zero.
 
 ## Summary
 
-Here is what we have learned:
+We have done a fairly thorough sweep of the pairwise relationship between our variables, including some new rate variables that we created. From here, we could go on to explore multiple variables at once, or we could consider transforming or segmenting variables and reexamining pairwise combinations. Given the number of directions we could move in, perhaps it would be wise to step back and ask what it is we're even trying to learn or predict -- beyond mere "data surprises."
+
+But first, here is what we have learned:
 
 * Loan amount is correlated with some expected variables: the number of borrowers, the funding time, the lender count, and the repayment time.
 * The fraction of the borrowing group's composition that is female is negatively correlated with funding time, albeit weakly.
@@ -410,19 +598,19 @@ Here is what we have learned:
 * The country of the borrower tell us much more about a loan's amount. There is also greater variance within countries when it comes to gender and number of borrowers. When we condition on country, we also see a greater variance by sector than we do unconditionally.
 * Country also seems to account for some of the variance in the pipeline variables: number of lenders, funding time, and payback time. To some extent, this may be a conflation of country with loan amount, since these two are correlated.
 * Time series are complicated by the irregular observation intervals. That said, we see average loan amount and number of borrowers grow over time. Sector-wise, retail and agriculture loan amount grow in a fairly stable manner, food less so. Not all countries exhibit growth over the five-year period of the loan data set. Funding and repayment time both trend up, but both display curious maxima.
+* When we consider rates, certain correlations disappear on the lender side. The loan amount, the gender composition of the borrowing group, the borrower's country, and the borrower's sector -- none of these impact the individual borrower's average contribution or the amount of money donated by the Kiva lending community per day.
+* On the borrower side, we do see some interesting relationships between rates and other variables. Repayment rate is strongly correlated with loan amount and with number of borrowers, and weakly negatively correlated with gender composition. Furthermore, a moderate amount of the variance in borrower rates (USD per borrower) is explained by the borrower's country, while a smaller amount of the variance in repayment rate is explained by country. 
 
 We also encountered some curiosities in the data that we should address before moving on. Specifically:
 
 * We will remove countries that don't appear at least 30 times in the data.
 * We will remove loans that have a funding time less than 0.
-* We will remove high-leverage loan amounts -- i.e. loan amounts greater than 6000.
 * We will remove loans that happened before 2007.
 
 ```{r, warning=FALSE, error=FALSE}
 head(hc_loans)
 hc_loans2 = hc_loans[hc_loans$funded_timediff >= 0, ]
-hc_loans3 = hc_loans2[hc_loans$terms.loan_amount < 6000, ]
-hc_loans4 = hc_loans3[hc_loans$posted_datetime > strptime("2007-01-01", format="%Y-%m-%d"), ]
+hc_loans3 = hc_loans2[hc_loans$posted_datetime > strptime("2007-01-01", format="%Y-%m-%d"), ]
 
-hc_loans4_json = jsonlite::toJSON(hc_loans4)
-write(hc_loans4_json, file="hc_loans4.json")
+hc_loans3_json = jsonlite::toJSON(hc_loans3)
+write(hc_loans3_json, file="hc_loans3.json")
