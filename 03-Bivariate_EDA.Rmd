@@ -609,7 +609,7 @@ We also encountered some curiosities in the data that we should address before m
 
 ```{r, warning=FALSE, error=FALSE}
 head(hc_loans)
-hc_loans2 = hc_loans[hc_loans$funded_timediff >= 0, ]
+hc_loans2 = hc_loans[hc_loans$funded_timediff >= 0 & hc_loans$paid_timediff >= 0 , ]
 hc_loans3 = hc_loans2[hc_loans$posted_datetime > strptime("2007-01-01", format="%Y-%m-%d"), ]
 
 hc_loans3_json = jsonlite::toJSON(hc_loans3)
