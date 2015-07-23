@@ -247,7 +247,7 @@ ggplot(data=newpaid, aes(x=paid_timediff)) + geom_bar(fill="lightblue") +
 summary(newpaid$paid_timediff)
 ```
 
-Looking at the IQR, we see that most loans are repaid in the 6-12 month range, though some take 2 years or more to be repaid. We could consider segmenting by repayment time.
+Looking at the IQR, we see that most loans are repaid in the 6-12 month range, though some take 2 years or more to be repaid (and there are a few pesky negative values). We could consider segmenting by repayment time. 
 
 ## Times
 
