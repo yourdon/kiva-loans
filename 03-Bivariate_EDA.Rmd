@@ -67,7 +67,7 @@ ggplot(data=large_loans, aes(x=sector, y=terms.loan_amount, colour=sector)) +
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5,size=6))
 ```
 
-Even for this segment, though, the median and IQR's by sector are comparable. Perhaps segmenting by loan amount won't prove interesting after all.
+Even for this segment, though, the median and IQRs by sector are comparable. Perhaps segmenting by loan amount won't prove interesting after all.
 
 How does the sector relate to the number of borrowers? Loans with one borrower will dominate the plot, so let's look only at loans with more than one borrowers:
 
@@ -97,17 +97,24 @@ summary.lm(aov(terms.loan_amount ~ sector, loans))
 
 The very low adjusted R-squared means a negligible effect size.
 
-What about **country**? Does it help explain the characteristics of a loan?
+What about **country**? Does it help explain the characteristics of a loan? In the plot below, countries are colored by continent.
+
+```{r, warning=FALSE, message=FALSE}
+# helper function
+get_continent = function(df){
+  countrycode(df$location.country_code, origin="iso2c", destination="continent")
+}
+```
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=loans, aes(x=location.country_code, y=terms.loan_amount, 
-                       colour=location.country_code)) + geom_boxplot() + 
-  scale_colour_discrete(guide=FALSE) + 
+                       fill=get_continent(loans))) + geom_boxplot() + 
   xlab("Country") + ylab("Loan amount") +
+  scale_fill_discrete(name="Continent") +
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
 ```
 
-Here, we see a significant variance in loan amount, within and across countries. Some countries have a mean loan amount of over 3000 USD (the U.S., notably), even as many have a mean of under 1000 USD. Even for these latter countries, however, there can be a large number of loans in the upper quartile. (These are the dots lying outside the boxplots.)
+Here, we see a significant variance in loan amount, within and across countries. Some countries have a mean loan amount of over 3000 USD (the U.S., notably), even as many have a mean of under 1000 USD. Even for these latter countries, however, there can be a large number of loans in the upper quartile. (These are the dots lying outside the boxplots.) African countries and countries from the Americas tend to have a lower median loan amount than do Asian countries. The lowest Asian country is Iraq; the sole European country is Ukraine, and the country from Oceania is Samoa.
 
 Let's remove countries that don't show up much in our sample before analyzing how country relates to other loans variables.
 
@@ -129,8 +136,8 @@ How does country relate to number of borrowers?
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=hc_loans, aes(x=location.country_code, y=b.num, 
-                       colour=location.country_code)) + geom_boxplot() + 
-  scale_colour_discrete(guide=FALSE) + 
+                       fill=get_continent(hc_loans))) + geom_boxplot() + 
+  scale_fill_discrete(name="Continent") + 
   xlab("Country") + ylab("Number of borrowers") +
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
 ```
@@ -141,8 +148,8 @@ Does country relate to the gender composition of the borrowers?
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=hc_loans, aes(x=location.country_code, y=b.female, 
-                       colour=location.country_code)) + geom_boxplot() + 
-  scale_colour_discrete(guide=FALSE) + 
+                       fill=get_continent(hc_loans))) + geom_boxplot() + 
+  scale_fill_discrete(name="Continent") + 
   xlab("Country") + ylab("Fraction of females in borrower group") +
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
 ```
@@ -250,7 +257,22 @@ pairs.panels(loans[, c(8, 9, 17, 18, 5, 14, 15, 16)])
 
 Recall that we are separating the funding component of the pipeline from the repayment component. That noted, we observe that the loan amount and the funding time are correlated, albeit weakly; this is not surprising. What is somewhat more surprising is the correlation (again, weak) between funding time and gender. This correlation is *negative*, meaning that as the fraction of females in a borrowing group increases, the funding time tends to drop. There are similar trends, though even weaker, between the same variables and the repayment time.
 
-The number of borrowers and the length of the description have no apparent effect on how quickly a loan is funded (or repaid). Lender count, meanwhile, is correlated with variables that one might expect: the loan amount, the number of borrowers, and the funding time. It is not correlated with the gender composition of the borrowing group. We can quickly see, too, that the dollar per lender is completely uncorrelated with gender:
+We can confirm that there is a significant difference in the all-male and not-all-male populations when it comes to funding time using a t-test:
+
+```{r, warning=FALSE, message=FALSE}
+t.test(loans$funded_timediff ~ loans$b.fem>0)
+```
+
+There is definitely a difference in mean funding time: 4.08 ± 0.37 days. Given that the mean for all-male borrowin groups is 7.14 days, this effect size is rather large. Recall that the median funding time is quite low: 0.71 days. (The mean is 3.99 days.) Since high-value loans tend to drive up the funding time, and since males tend to be associated with higher loan amount (albeit quite weakly), we wonder whether this effect holds when we remove larger loans from consideration. Taking out the upper quartile:
+
+```{r, error=FALSE, warning=FALSE}
+normal_loans = loans[loans$terms.loan_amount <= quantile(loans$terms.loan_amount)[4], ]
+t.test(normal_loans$funded_timediff ~ normal_loans$b.fem>0)
+```
+
+It does. The difference in means is now closer to 3 days, but the effect is real.
+
+Moving on: The number of borrowers and the length of the description have no apparent effect on how quickly a loan is funded (or repaid). Lender count, meanwhile, is correlated with variables that one might expect: the loan amount, the number of borrowers, and the funding time. It is not correlated with the gender composition of the borrowing group. We can quickly see, too, that the dollar per lender is completely uncorrelated with gender:
 
 ```{r, warning=FALSE, error=FALSE}
 cor(loans$b.female, loans$terms.loan_amount/loans$lender_count)
@@ -268,7 +290,7 @@ ggplot(data=loans, aes(x=sector, y=funded_timediff,
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
 ```
 
-The median funding time for all sector is quite low, with slightly larger IQR's for sectors that one might expect: housing and transportation. The length of the each sector's tail is the main distinguishing feature.
+The median funding time for all sector is quite low, with slightly larger IQRs for sectors that one might expect: housing and transportation. The length of the each sector's tail is the main distinguishing feature.
 
 Does the number of lenders vary by sector?
 
@@ -297,10 +319,11 @@ Again, the answer is *not really*.
 We move on to examining the relationship of the borrower's country to the funding time.
 
 ```{r, warning=FALSE, message=FALSE}
-ggplot(data=hc_loans[hc_loans$funded_timediff >= 0, ], 
+hc_loans_0 = hc_loans[hc_loans$funded_timediff >= 0, ]
+ggplot(data=hc_loans_0, 
        aes(x=location.country_code, y=funded_timediff, 
-                       colour=location.country_code)) + geom_boxplot() + 
-  scale_colour_discrete(guide=FALSE) + 
+                       fill=get_continent(hc_loans_0))) + geom_boxplot() + 
+  scale_fill_discrete(name="Continent") + 
   xlab("Country") + ylab("Funding time") +
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
 ```
@@ -308,7 +331,6 @@ ggplot(data=hc_loans[hc_loans$funded_timediff >= 0, ],
 There are a few countries whose median value is much higher than the global median, which is a mere 0.71 days. These counties include:
 
 ```{r, warning=FALSE, message=FALSE}
-hc_loans_0 = hc_loans[hc_loans$funded_timediff >= 0, ]
 long_fund = sort(tapply(hc_loans_0$funded_timediff, 
             hc_loans_0$location.country_code, median), decreasing=T)[1:10]
 countrycode(names(long_fund), origin="iso2c", destination="country.name")
@@ -318,8 +340,8 @@ How does the number of lenders relate to the borrowing country?
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=hc_loans, aes(x=location.country_code, y=lender_count, 
-                       colour=location.country_code)) + geom_boxplot() + 
-  scale_colour_discrete(guide=FALSE) + 
+                       fill=get_continent(hc_loans))) + geom_boxplot() + 
+  scale_fill_discrete(name="Continent") + 
   xlab("Country") + ylab("Number of lenders") +
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
 ```
@@ -346,8 +368,8 @@ Finally, we examine repayment time by country.
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=hc_loans, aes(x=location.country_code, y=paid_timediff, 
-                       colour=location.country_code)) + geom_boxplot() + 
-  scale_colour_discrete(guide=FALSE) + 
+                       fill=get_continent(hc_loans))) + geom_boxplot() + 
+  scale_fill_discrete(name="Continent") + 
   xlab("Country") + ylab("Repayment time") +
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5, size=6))
 ```
@@ -398,7 +420,7 @@ We also encountered some curiosities in the data that we should address before m
 
 ```{r, warning=FALSE, error=FALSE}
 head(hc_loans)
-hc_loans2 = hc_loans[hc_loans$funding_timediff >= 0, ]
+hc_loans2 = hc_loans[hc_loans$funded_timediff >= 0, ]
 hc_loans3 = hc_loans2[hc_loans$terms.loan_amount < 6000, ]
 hc_loans4 = hc_loans3[hc_loans$posted_datetime > strptime("2007-01-01", format="%Y-%m-%d"), ]
 
