@@ -158,7 +158,6 @@ loans2 = jsonlite::fromJSON("loan_full.json")
 loans2 = na.omit(loans2)
 loans2 = loans2[loans2$status == "paid", ]
 loans2 = loans2[loans2$posted_datetime > strptime("2007-01-01", format="%Y-%m-%d"), ]
-#loans44 = loans2[loans2$posted_datetime > strptime("2007-01-01", format="%Y-%m-%d"), ]
 loans2 = loans2[, c(3, 4, 7:8, 16:18)]
 
 # remove countries that don't appear at least 30 times
