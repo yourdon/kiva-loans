@@ -1,5 +1,5 @@
-03 Kiva Loans: Bivariate EDA
-=============================
+03 Kiva Loans: Analysis in Two Variables
+========================================
 
 In this file, we begin to consider relationships between variables. We have two basic types of questions that we're interested in:
 

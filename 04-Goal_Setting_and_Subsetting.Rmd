@@ -1,5 +1,5 @@
-04 Kiva Loans: Goals, Subsetting, and Multivariate EDA
-====================================================
+04 Kiva Loans: Goal Setting and Subsetting (and Multivariate EDA!)
+==================================================================
 
 We have done a healthy amount of exploration of our data, introducing a few rate variables but not performing any transformations of our original variables nor doing any subsetting that wasn't motivated by quirks in the data. At this stage, we want to begin focusing our analysis, so as to avoid jumping down every rabbit hole available. Beyond the minor thrills uncovered during exploration, what are our goals? What do we want to know? What actions could an actor hope to take based on this data? 
 

@@ -1,5 +1,5 @@
-02 Kiva Loans: Univariate EDA
-=============================
+02 Kiva Loans: Analysis in One Variable
+=======================================
 
 In this file, we take our processed Kiva loan file, which is a sample of the full dataset, and try to answer some basic questions about each variable. Because we're working only with a sample, we'll concern ourselves with sample statistics (e.g. number of lenders per loan), relative comparisons, rates, and trends, but not with global counts that our partial sample would poorly approximate (e.g. loans per year).
 
