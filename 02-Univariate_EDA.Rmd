@@ -221,7 +221,7 @@ ggplot(data=newpaid, aes(x=funded_timediff)) + geom_bar(fill="lightblue") +
 summary(newpaid$funded_timediff)
 ```
 
-The median loan is funded by lenders in less than a day, and the first quartile is funded in 0.16 days, or about 4 hours! This is somewhat surprising, but we can re-interpret the median figure in terms that sound reasonable. Given that the median loan is 550 USD and the median number of lenders is 17, this means that for the median loans, 17 lenders laon 550 / 17 = 32.35 within the span of a day. Although we don't know the country codes of the lenders, for a developed nation, this doesn't sound unreasonable.
+The median loan is funded by lenders in less than a day, and the first quartile is funded in 0.16 days, or about 4 hours! This is somewhat surprising, but we can re-interpret the median figure in terms that sound reasonable. Given that the median loan is 550 USD and the median number of lenders is 17, this means that for the median loans, 17 lenders loan 550 / 17 = 32.35 within the span of a day. Although we don't know the country codes of the lenders, for a developed nation, this doesn't sound unreasonable.
 
 There is a long tail of loans that take 10 days or longer to get funded (though none takes longer than 65 days). What might be going on with the loans that don't get funded immediately?
 
