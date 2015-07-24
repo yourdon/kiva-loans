@@ -35,7 +35,7 @@ pairs.panels(slim_loans[, c(5, 7, 8, 10, 9)])
 
 If we examine each scatterplot individually, we see a few aspects of the data that will cause us trouble as we move on to the modeling step:
 
-* There is a clear class of loans that could be calle "one borrower, no matter what." This class account for some of the artifacts we see in the plots. For example, the borrower rate vs. loan amount plot has a line with positive slope that corresponding to a single borrower taking our increasingly more expensive loans; it also has a class of borrowers who take out loans in groups, and these groups seem to borrow at a rate (USD per person) that falls within a farly narrow range. We see a similar artifact in the repayment rate vs. borrower number plot. Modeling these two classes separately seems wise.
+* There is a clear class of loans that could be called "one borrower, regardless of the amount." This class accounts for some of the artifacts we see in the plots. For example, the borrower rate vs. loan amount plot has a line with positive slope that corresponding to a single borrower taking our increasingly more expensive loans; it also has a class of borrowers who take out loans in groups, and these groups seem to borrow at a rate (USD per person) that falls within a farly narrow range. We see a similar artifact in the repayment rate vs. borrower number plot. Modeling these two classes separately seems wise.
 * Another potentially troublesome aspect of the data is the `b.female` variable. There are a number of observations between 0 and 1 confusing the fit. We will likely want to transform this to a binary value.
 * Finally, all of our other variables except `b.female` are resolutely non-normal and exhibit a highly positive skew. Many models assume that data are drawn from a multivariate normal distribution. We will likely need to look beyond linear models.
 
@@ -149,7 +149,15 @@ ggplot(data=slim_loans.sb, aes(x=terms.loan_amount, y=r.rate,
 
 The separation by gender we saw in multiple-borrower groups for high loan amounts does not exist here.
 
-## Resampling
+## Summary
+
+We have focused our analysis on the repayment rate and on our way to see whether we can predict this rate reliably. In the course of doing so, we learned the following:
+
+* There is a clear split between single-borrower and multiple-borrower groups in the data. Only 13% of loans come from group borrowers, but for this class, correlations between variables of interest tend to be stronger. Given how stark this difference is, and how much error the single-borrower class introduces, we are going to model them separately.
+* In this multiple-borrower class, we also notice a mild correlation between an indicator variable for a male presence in a group and the repayment rate. This is somewhat misleading. Males tend to be associated with higher-value loans, which tend to be paid back at a greater rate, but as we saw in a scatterplot, when we condition on the loan amount, males tend to be associated with a lower repayment rate.
+* In the multiple-borrower group, for high-value loans, Asian countries tend to be associated with a lower repayment rate than African countries or countries from the Americas do. This may be explained by the surprising fact that in African and American countries, there are no single-borrower loans above a certain amount (around 1200 USD). Above this cut-off, Asian and American countries borrow in groups, and groups tend to have a higher repayment rate.
+
+## Appendix: Resampling
 
 It's almost time to build a model and start predicting repayment rates. Recall that we want to treat multiple-borrower groups separately from single-borrower groups and that multiple-borrower groups make up only 13% of the sample. Given that we *also* want to consider including factors with many level (50+ for country; 10 for sector), we are going to quickly run into combinations of countries and sectors that have only a few observations. This suggests that we return to our full data set and grab a larger sample of multiple-borrower groups. To do so, we'll need to run it through the same transformations that our first sample received. 
 
