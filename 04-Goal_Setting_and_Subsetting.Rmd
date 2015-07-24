@@ -1,0 +1,206 @@
+04 Kiva Loans: Goals, Subsetting, and Multivariate EDA
+====================================================
+
+We have done a healthy amount of exploration of our data, introducing a few rate variables but not performing any transformations of our original variables nor doing any subsetting that wasn't motivated by quirks in the data. At this stage, we want to begin focusing our analysis, so as to avoid jumping down every rabbit hole available. Beyond the minor thrills uncovered during exploration, what are our goals? What do we want to know? What actions could an actor hope to take based on this data? 
+
+A few different ideas jump out:
+
+* Based on per-country loan request trends, one could forecast loan amounts and plan more effectively at the partner or disbursal level.
+* Based on lender behavior, one could predict which loans attract more lenders, then display these more prominently on the main site in an attempt to increase the overall pool of funds available to borrowers.
+* Based on borrower behavior, one could more effectively predict borrowers that were at risk of lengthy repayment cycles and develop processes to help them stay on track.
+
+Of these, the first would entail a level of aggregation -- and accompanying error -- that we haven't attempted yet, so we will leave it for now. The second idea is interesting, but we haven't seen much evidence lender behavior is affected by properties of the loan, especially when we took lender rate and funding rate into account. (Of course, other data elements that we haven't considered, such as the actual text of the descriptions, may be useful for understanding lender behavior.) This suggests that we focus on the third idea: predicting borrower repayment behavior.
+
+Let's resume our exploration, using this as our framing device when choosing how to subset, transform, and model our data.
+
+```{r, warning=FALSE, message=FALSE}
+library(jsonlite)
+library(ggplot2)
+library(psych)
+library(RColorBrewer)
+library(countrycode)
+
+loans = jsonlite::fromJSON("hc_loans3.json")
+```
+
+## Borrower behavior
+
+First, we will pull out the fields of potential interest and create a new dataframe. We'll then bring up our scatterplot matrix again to reorient ourselves.
+
+```{r, warning=FALSE, error=FALSE}
+slim_loans = loans[, c(1, 3, 4, 7:8, 16:18, 21:22)]
+slim_loans = na.omit(slim_loans)
+pairs.panels(slim_loans[, c(5, 7, 8, 10, 9)])
+```
+
+If we examine each scatterplot individually, we see a few aspects of the data that will cause us trouble as we move on to the modeling step:
+
+* There is a clear class of loans that could be calle "one borrower, no matter what." This class account for some of the artifacts we see in the plots. For example, the borrower rate vs. loan amount plot has a line with positive slope that corresponding to a single borrower taking our increasingly more expensive loans; it also has a class of borrowers who take out loans in groups, and these groups seem to borrow at a rate (USD per person) that falls within a farly narrow range. We see a similar artifact in the repayment rate vs. borrower number plot. Modeling these two classes separately seems wise.
+* Another potentially troublesome aspect of the data is the `b.female` variable. There are a number of observations between 0 and 1 confusing the fit. We will likely want to transform this to a binary value.
+* Finally, all of our other variables except `b.female` are resolutely non-normal and exhibit a highly positive skew. Many models assume that data are drawn from a multivariate normal distribution. We will likely need to look beyond linear models.
+
+For now, let's take the two steps mentioned above: creating an indicator variable for group-borrower classes and another variable for "maleness."
+
+```{r, warning=FALSE, error=FALSE}
+slim_loans$b.male = slim_loans$b.female != 1
+slim_loans$b.group = slim_loans$b.num > 1
+
+summary(slim_loans[,c("b.group", "b.male")])
+```
+
+We see that only 13% of loans come from group borrowers. We also observe that 72% of borrowers are female or all-female groups. How do these indicator variables affect our scatterplots? Let's examine the multiple-borrower class first:
+
+```{r, warning=FALSE, error=FALSE}
+pairs.panels(slim_loans[slim_loans$b.group==TRUE, c(5, 7, 8, 10, 9, 11)])
+```
+
+The correlation between loan amount and repayment rate is now very strong: 0.89. Since the number of borrowers is so well correlated with loan amount -- especially for groups! -- there is a correspondingly strong correlation between the number of borrowers and the repayment rate. Interestingly, we also see some weak correlations with the male indicator variable. When males are members of a group, more money tends to be loaned, and the loan money tends to be repaid at a greater rate.  
+
+What about the single-borrower class?
+
+```{r, warning=FALSE, error=FALSE}
+pairs.panels(slim_loans[slim_loans$b.group==FALSE, c(5, 8, 10, 9, 11)])
+```
+
+There is a moderate-to-strong correlation between the loan amount and the repayment rate. Because we only have single borrowers now, this correlation is identical to the correlation between borrower rate and repayment rate. (We also have confirmation that our male indicator value worked correctly, given the -1 value.) Still, r = 0.63 is not the strongest correlation, and single borrowers account for the vast majority of loans. If we hope to predict the repayment rate, we'll need for country or sector help explain additional variance.
+
+## Multivariate EDA
+
+As we examine how repayment rate is associated with loan amount, number of borrowers, and the gender composition of the borrowers, we can layer in sector and country. Only when we get to the modeling step will we get a quantitative feel for the power of these categorical variables, but we may as well enjoy some pictures too. In addition, we can treat gender as a categorical variable and layer it into our plot.
+
+### Multiple-borrower groups
+
+We'll examine multiple-borrower groups first. Plotting 50+ countries would be too much, so we'll group countries by continent:
+
+```{r, warning=FALSE, error=FALSE}
+# helper function
+get_continent = function(df){
+  countrycode(df$location.country_code, origin="iso2c", destination="continent")
+}
+
+slim_loans.mb = slim_loans[slim_loans$b.group==TRUE, ]
+
+ggplot(data=slim_loans.mb, aes(x=terms.loan_amount, y=r.rate, 
+                       colour=get_continent(slim_loans.mb))) + 
+  geom_point(aes(size=2)) + 
+  scale_colour_discrete(name="Continent") + guides(size=FALSE) +
+  xlab("Loan amount") + ylab("Repayment rate")
+```
+
+Apart from a few outliers, there is a clear band of loans from Asian countries with a lower repayment rate per loan dollar than loans from countries in Africa or the Americas. We may wish to consider feeding continent, not just country, into our model.
+
+What about sector?
+
+```{r, warning=FALSE, error=FALSE}
+ggplot(data=slim_loans.mb, aes(x=terms.loan_amount, y=r.rate, 
+                       colour=sector)) + geom_point(aes(size=2)) + 
+  scale_colour_discrete(name="Sector") + guides(size=FALSE) +
+  xlab("Loan amount") + ylab("Repayment rate")
+```
+
+There may be patterns, but there are too many sector to be sure.
+
+```{r, warning=FALSE, error=FALSE}
+ggplot(data=slim_loans.mb, aes(x=terms.loan_amount, y=r.rate, 
+                       colour=b.male)) + geom_point(aes(size=2)) + 
+  scale_colour_discrete(name="Male in group") + guides(size=FALSE) +
+  xlab("Loan amount") + ylab("Repayment rate")
+```
+
+Above, we saw a positive correlation between borrowing groups that have males and repayment rates. Here, however, we see that beyond a certain loan amount, groups that have males tend to be associated with lower rates. This suggests a non-linearity in the joint distribution of loan amount and our gender variables. If we want to exploit this trend, we will likely want to try a tree-based model.
+
+### Single-borrower groups
+
+We move on to considering single-borrower groups. Again, we do a quick pass through country, sector, and gender variables.
+
+First up: country.
+
+```{r, warning=FALSE, error=FALSE}
+slim_loans.sb = slim_loans[slim_loans$b.group==FALSE, ]
+
+ggplot(data=slim_loans.sb, aes(x=terms.loan_amount, y=r.rate, 
+                       colour=get_continent(slim_loans.sb))) + 
+  geom_point(aes(size=2)) + 
+  scale_colour_discrete(name="Continent") + guides(size=FALSE) +
+  xlab("Loan amount") + ylab("Repayment rate")
+```
+
+This plot reveals a new trend: single-borrower groups in Asia and the Americas *never* borrow more than 1200 USD. The cut-off is remarkably apparent! Above the cut-off, European countries repay more quickly than Asian countries do. Below it, there is little distinction. Still, we have another reason to consider incorporating continent as a crutch for leverage in a model.
+
+What about sector?
+
+```{r, warning=FALSE, error=FALSE}
+ggplot(data=slim_loans.sb, aes(x=terms.loan_amount, y=r.rate, 
+                       colour=sector)) + geom_point(aes(size=2)) + 
+  scale_colour_discrete(name="Sector") + guides(size=FALSE) +
+  xlab("Loan amount") + ylab("Repayment rate")
+```
+
+As with multiple-borrower groups, there is no discernible pattern when introduce sector. However, we do see the cut-off around 1200 USD that we saw in the previous plot.
+
+What about gender?
+
+```{r, warning=FALSE, error=FALSE}
+ggplot(data=slim_loans.sb, aes(x=terms.loan_amount, y=r.rate, 
+                       colour=b.male)) + geom_point(aes(size=2)) + 
+  scale_colour_discrete(name="Male borrower") + guides(size=FALSE) +
+  xlab("Loan amount") + ylab("Repayment rate")
+```
+
+The separation by gender we saw in multiple-borrower groups for high loan amounts does not exist here.
+
+## Resampling
+
+It's almost time to build a model and start predicting repayment rates. Recall that we want to treat multiple-borrower groups separately from single-borrower groups and that multiple-borrower groups make up only 13% of the sample. Given that we *also* want to consider including factors with many level (50+ for country; 10 for sector), we are going to quickly run into combinations of countries and sectors that have only a few observations. This suggests that we return to our full data set and grab a larger sample of multiple-borrower groups. To do so, we'll need to run it through the same transformations that our first sample received. 
+
+```{r, warning=FALSE, error=FALSE}
+loans2 = jsonlite::fromJSON("loan_full.json")
+loans2 = na.omit(loans2)
+loans2 = loans2[loans2$status == "paid", ]
+loans2 = loans2[loans2$posted_datetime > strptime("2007-01-01", format="%Y-%m-%d"), ]
+#loans44 = loans2[loans2$posted_datetime > strptime("2007-01-01", format="%Y-%m-%d"), ]
+loans2 = loans2[, c(3, 4, 7:8, 16:18)]
+
+# remove countries that don't appear at least 30 times
+high_countries_loans2 = table(loans2$location.country_code) >= 30
+hc_vec_loans2 = high_countries_loans2[loans2$location.country_code] == TRUE
+loans2 = loans2[hc_vec_loans2, ] 
+
+loans2 = loans2[loans2$paid_timediff >= 0 , ]
+loans2$r.rate = loans2$terms.loan_amount / loans2$paid_timediff
+loans2$b.rate = loans2$terms.loan_amount / loans2$b.num
+loans2$b.male = loans2$b.female != 1
+loans2$b.group = loans2$b.num > 1
+loans2$continent = get_continent(loans2)
+
+# did it work? summarize
+summary(loans2)
+```
+
+Now we want to separate single-borrower groups from multiple-borrower groups:
+
+```{r, warning=FALSE, error=FALSE}
+b.mult = loans2$b.group == TRUE
+loans2.mb = loans2[b.mult,]
+loans2.sb = loans2[-b.mult,]
+```
+
+We have almost 19,000 observations in the multiple-borrower group. Let's sample the same amount from the single-borrower group, save all three data frames as JSON files, and then move on to modeling.
+
+```{r, warning=FALSE, error=FALSE}
+set.seed(1)
+sample_rows = sample(dim(loans2.sb)[1], 19000) 
+loans2.sb.sample = loans2.sb[sample_rows,]
+
+# single borrower sample
+loans2.sb.sample_json = jsonlite::toJSON(loans2.sb.sample)
+write(loans2.sb.sample_json, file="loans_sb_sample.json")
+
+# single borrower full
+loans2.sb_json = jsonlite::toJSON(loans2.sb)
+write(loans2.sb_json, file="loans_sb.json")
+
+# multiple borrower full == sample
+loans2.mb_json = jsonlite::toJSON(loans2.mb)
+write(loans2.mb_json, file="loans_mb.json")
+```

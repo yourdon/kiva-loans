@@ -1,0 +1,297 @@
+02 Kiva Loans: Univariate EDA
+=============================
+
+In this file, we take our processed Kiva loan file, which is a sample of the full dataset, and try to answer some basic questions about each variable. Because we're working only with a sample, we'll concern ourselves with sample statistics (e.g. number of lenders per loan), relative comparisons, rates, and trends, but not with global counts that our partial sample would poorly approximate (e.g. loans per year).
+
+Let's load the file and get going.
+
+```{r, warning=FALSE, message=FALSE}
+library(jsonlite)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+
+loans = jsonlite::fromJSON("loan_sample.json")
+
+loans$posted_datetime = strptime(loans$posted_datetime, format = "%Y-%m-%d %H:%M:%S")
+loans$funded_datetime = strptime(loans$funded_datetime, format = "%Y-%m-%d %H:%M:%S")
+loans$disbursal_datetime = strptime(loans$disbursal_datetime, format = "%Y-%m-%d %H:%M:%S")
+loans$paid_datetime = strptime(loans$paid_datetime, format = "%Y-%m-%d %H:%M:%S")
+```
+
+## Missing and duplicate data
+
+First, let's see if we have any duplicate entries.
+
+```{r}
+sum(duplicated(loans$id))
+```
+
+None. However, we do have some missing data.
+
+```{r, warning=FALSE, message=FALSE}
+sum(is.na(loans)) / (15000*18)
+```
+
+Roughly 2% of the data in the sample are missing. Which fields have the most missing data?
+
+```{r, warning=FALSE, message=FALSE}
+lapply(lapply(loans, is.na), mean)
+```
+
+All of the missing data occurs in date-related fields. This suggests we'll encounter NA's whenever we have breakages in the loan pipeline -- for example, when a loan doesn't get disbursed or doesn't get repaid.
+
+Let's take a look at all the variables in our sampled loan file.
+
+## Status
+
+```{r, warning=FALSE, message=FALSE}
+summary(as.factor(loans[,2]))
+```
+
+Of the 15,000 loans in the sample, the vast majority (13788/15000 = 92%) have been paid back. We could restrict our analysis to the loans that have made it through the pipeline, since one could argue that everything else is in some sense "bad data"; on the other hand, it could be interesting to characterize the loans that didn't get paid back and see whether there are any noticeable patterns.  
+
+Does the missing data have any relation to loan status?
+
+```{r, warning=FALSE, message=FALSE}
+lapply(lapply(loans[loans$status == "paid",], is.na), mean)
+sum(is.na(loans[loans$status == "paid", ])) / (13788*18)
+```
+
+Yes, there's no missing data when we look only at repaid loans. So let's use that data.
+
+```{r, warning=FALSE, message=FALSE}
+paid = loans[loans$status == "paid", ]
+```
+
+## Sector
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data=paid, aes(x=as.factor(paid[,3]))) + 
+  geom_histogram(fill="lightblue") + labs(x="sector") +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+summary(as.factor(paid[,3]))
+```
+
+Most of the loans are going to food, retail, and agriculture uses.
+
+## Partner ID
+
+```{r, warning=FALSE, message=FALSE}
+partners = table(as.factor(paid[,4]))
+partners_df = as.data.frame(partners)
+ggplot(partners_df, aes(x = reorder(Var1, -Freq), y = Freq)) + 
+  geom_bar(aes(fill=Freq), stat="identity") + guides(fill=FALSE) +
+  labs(x="partner") + scale_x_discrete(breaks=NULL)
+quantile(partners)
+```
+
+We see a lot of different partners with a large variance in their loan activity. It's conceivable that more active partners have different behaviors than less active partners do, especially ones who have worked on only a single loan. This could be something to investigate.
+
+## Lender count
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data=paid, aes(x=paid[,5])) + geom_bar(fill="lightblue") +
+  labs(x="lender")
+summary(paid[,5])
+```
+
+The median loan has 17 lenders, and the mean isn't much greater than that. We see a few loans with a large number of lenders. As a quick check -- is the loan with the most lenders also the loan with the greatest dollar amount?
+
+```{r, warning=FALSE, message=FALSE}
+which.max(paid[,5]) == which.max(paid$terms.loan_amount)
+```
+
+It is.
+
+## Countries
+
+We have 49 unique countries in our sample (and quite possibly more in the full dataset). Some claim a disproportionate number of the loans:
+
+```{r, warning=FALSE, message=FALSE}
+countries = table(as.factor(paid$location.country_code))
+countries_df = as.data.frame(countries)
+ggplot(countries_df, aes(x = reorder(Var1, -Freq), y = Freq)) + 
+  geom_bar(aes(fill=Freq), stat="identity") + guides(fill=FALSE) +
+  labs(x="country") +
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+quantile(countries)
+```
+
+The x-axis shows [country code](https://en.wikipedia.org/wiki/ISO_3166-1). The top 3 borrowers are The Philippines (PH), Peru (PE), and Cambodia (KH). 
+
+## Languages
+
+How many different languages do descriptions come in?
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data=paid, aes(x=as.factor(sapply(paid[,6], length)))) + 
+  geom_histogram(fill="lightblue") + labs(x="Number of languages")
+```
+
+There are only 1 or 2 languages per description as a rule. Which languages are most prevalent?
+
+```{r, warning=FALSE, message=FALSE}
+langs = as.data.frame(unlist(paid[,6]))
+colnames(langs) ="lang"
+ggplot(data=langs, aes(x=lang)) + geom_histogram(fill="lightblue") + labs(x="language")
+table(as.factor(unlist(paid[,6])))
+```
+
+English is by far the most common, though Spanish is in the same ballpark. 
+
+## Description length
+
+How many characters are there per description, on average?
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data=paid, aes(x=description.avgchar)) + geom_bar(fill="lightblue") +
+  labs(x="Average length (characters)")
+summary(paid$description.avgchar)
+```
+
+We see a postively skewed distribution here. There's a long tail, with a max at around 7000 characters. (Remember that we have averaged over languages, so this isn't the effect of lots of translations.) Let's take a quick look at this data point:
+
+```{r, warning=FALSE, message=FALSE}
+loans[which.max(loans$description.avgchar),]
+```
+
+There doesn't seem to be anything unusual going on here. We could peek at the raw data to see whether the description reveals anything of interest, but let's forgo that for now.
+
+## Borrower data
+
+We have two pieces of data regarding the borrowers: their number and the fraction who are female.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data=paid, aes(x=b.num)) + geom_bar(fill="lightblue") +
+  labs(x="Number of borrowers")
+summary(paid$b.num)
+```
+
+Clearly, the majority of loans are going to a single borrower, but a non-negligible number of loans go to multiple borrowers. The max is still completely reasonable. It will be interesting to see how this variable affects lender behavior.
+
+What about gender?
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data=paid, aes(x=b.female)) + geom_bar(fill="lightblue") +
+  labs(x="Ratio of female borrowers")
+summary(paid$b.female)
+```
+
+Most of the loans are going to females, or all-female groups, though about 20% go to males, or all-male groups. Because most loans go to single borrowers, we don't see many mixed-gender borrowing groups.
+
+## Loan amount
+
+What is the distribution of loan amounts (in USD)?
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data=paid, aes(x=terms.loan_amount)) + geom_bar(fill="lightblue") +
+  labs(x="Loan amount")
+summary(paid$terms.loan_amount)
+```
+
+The median and mean are both under 1,000 USD, but there is a long tail of loan amount snaking out to 10,000 USD. We may wish to consider treating these loans beyond the main mass (around x = 1,500) as a separate class and investigate what its properties are.
+
+## Pipeline time differences
+
+Let's now look at the time differences between sequential steps in the pipeline: from posting to funding, from funding to disbursal, and from disbursal to repayment.
+
+### Time to funding
+
+The `funded_timediff` variable accounts for the time difference between when a loan was posted on Kiva and when it was funded by users.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data=paid, aes(x=funded_timediff)) + geom_bar(fill="lightblue") +
+  labs(x="Funding time")
+summary(paid$funded_timediff)
+```
+
+We have some weird data here. Some loans were funded before they were posted. We have already seen that some loans are "pre-disbursed", but are some also "pre-funded"?
+
+```{r, warning=FALSE, message=FALSE}
+paid[paid$funded_timediff < 0, ]
+```
+
+These are from early on in the record keeping. Perhaps they were the first loans that Kiva posted, and they had already been funded through some alternate mechanism. Let's exclude these records, as this is a clear edge effect, and examine the same variable again.  
+
+```{r}
+newpaid = paid[paid$funded_timediff > 0, ]
+ggplot(data=newpaid, aes(x=funded_timediff)) + geom_bar(fill="lightblue") +
+  labs(x="Funding time")
+summary(newpaid$funded_timediff)
+```
+
+The median loan is funded by lenders in less than a day, and the first quartile is funded in 0.16 days, or about 4 hours! This is somewhat surprising, but we can re-interpret the median figure in terms that sound reasonable. Given that the median loan is 550 USD and the median number of lenders is 17, this means that for the median loans, 17 lenders loan 550 / 17 = 32.35 within the span of a day. Although we don't know the country codes of the lenders, for a developed nation, this doesn't sound unreasonable.
+
+There is a long tail of loans that take 10 days or longer to get funded (though none takes longer than 65 days). What might be going on with the loans that don't get funded immediately?
+
+### Time to disbursal
+
+The `disbursal_timediff` variable accounts for the time difference between when a loan was funded by lenders and when it was disbursed to borrowers. We observed earlier that many of the disbursal time differences were negative, indicating that the funds had been "pre-disbursed" -- that is, given to borrowers before they were funded by Kiva lenders, due to urgent needs. That presents a wrinkle for any sort of supply chain analysis. Nevertheless, let's take a look at the distribution for this variable.
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data=newpaid, aes(x=disbursed_timediff)) + geom_bar(fill="lightblue") +
+  labs(x="Disbursal time")
+summary(newpaid$disbursed_timediff)
+```
+
+So it seems that *most* loans were disbursed before they were posted, not just some. Another wrinkle is the spike around t = 30 days. This value is close enough to the average number of days per month to seem like an artifact of record keeping, and the sharpness of the peak reinforces that suspicion. We have another reason now to exclude this variable from any supply chain analysis. That said, it may still be interesting to see if we can characterize loans according to their pre-disbursal time.  
+
+### Time to repayment
+
+The `paid_timediff` variable accounts for the time difference between when a loan was disbursed to a borrower and when it was repaid. 
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(data=newpaid, aes(x=paid_timediff)) + geom_bar(fill="lightblue") +
+  labs(x="Repayment time")
+summary(newpaid$paid_timediff)
+```
+
+Looking at the IQR, we see that most loans are repaid in the 6-12 month range, though some take 2 years or more to be repaid. We could consider segmenting by repayment time. 
+
+We also see a few pesky negative values. Let's get rid of those:
+
+```{r, warning=FALSE, message=FALSE}
+newpaid = newpaid[newpaid$paid_timediff >= 0, ]
+```
+
+## Times
+
+Finally, we can look at plots of the times themselves.
+
+```{r, warning=FALSE, message=FALSE}
+p1 = ggplot(data=newpaid, aes(x=posted_datetime)) + geom_histogram(aes(y=..density..)) +
+  geom_density(col=2) + labs(x="Posting date")
+p2 = ggplot(data=newpaid, aes(x=funded_datetime)) + geom_histogram(aes(y=..density..)) +
+  geom_density(col=3) + labs(x="Funding date")
+p3 = ggplot(data=newpaid, aes(x=disbursal_datetime)) + geom_histogram(aes(y=..density..)) +
+  geom_density(col=4) + labs(x="Disbursal date")
+p4 = ggplot(data=newpaid, aes(x=paid_datetime)) + geom_histogram(aes(y=..density..)) +
+  geom_density(col=5) + labs(x="Repayment date")
+
+grid.arrange(p1, p2, p3, p4, ncol = 1)
+```
+
+There's nothing too surprising here. We see a general trend of more loans per year across all time plots, presumably because Kiva's reach is growing. The `paid_datetime` plot lags behind the others and extends into 2014, but we would expect that since repayment is the last link in the supply chain.
+
+## Summary
+
+After a high-level survey of each variable, we have found a bunch of NAs due to loans in some non-"paid" status, but once we excluded these loans, we had no missing data. We did exclude a few early records where the funding date preceded the posting date. 
+
+The main wrinkle is still our `disbursal_timediff` variable. The negative values here suggest that we should cut our supply chain into two disconnected components. The first component, characterized by the `funded_timediff` variable, could describe how a loan goes from being posted to being funded (even if it has already been disbursed), while the second component, characterized by the `paid_timediff` variable, could describe how a loan goes from being disbursed to being repaid (regardless of when it was posted and funded).
+
+Additionally, we generated some ideas for how we might query the data as we move to investigating relationships between variables. These ideas include:
+
+* Characterizing loans that _didn't_ get paid back
+* Looking at loan behavior for active vs. less active partners
+* Segmenting the data by number of borrowers
+* Segmenting the data by large vs. small loan amounts
+* Looking at loans that took a relatively long time to get funded
+* Looking at loans that took a relatively long time to get repaid
+
+As a last step, we'll write our most polished dataframe to a new JSON file for use in the next round of analysis.
+
+```{r, warning=FALSE, message=FALSE}
+newpaid_json = jsonlite::toJSON(newpaid)
+write(newpaid_json, file="newpaid.json")
+```
