@@ -1,15 +1,17 @@
 Kiva Loan Analysis
 =================================
 
-These files present data analysis and predictive modeling of loan repayment rates for the [Kiva loan data set](http://build.kiva.org/docs/data/snapshots), based on a snapshot taken at 2015-07-10 20:10:00 UTC. The more interesting results happen in the later parts, so readers may wish to skip ahead.
+These files present analysis and predictive modeling of loan repayment rates for the [Kiva loan data set](http://build.kiva.org/docs/data/snapshots), based on a snapshot taken at 2015-07-10 20:10:00 UTC. The initial parts are concerned with preprocessing and simple profiling, so readers with limited time may wish to skip ahead.
 
 Running
 -------
 
 Each part of the analysis can be viewed online, thanks to RawGit.
 
-* 06: Tree-Based Models
-* 05: Repayment Rate: Simple Linear Models
+* Summary and Highlights (coming soon)
+* 07: The Single-Borrower Class (coming soon)
+* 06: Tree and Forest Models (coming soon)
+* 05: Repayment Rate: Linear Models
 * 04: Goal Setting and Subsetting
 * 03: Analysis in Two Variables
 * 02: Analysis in One Variable
