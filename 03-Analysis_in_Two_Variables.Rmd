@@ -586,6 +586,22 @@ summary.lm(aov(r.rate ~ sector, loans))$adj.r.squared
 
 All are effectively zero.
 
+### Rates over time
+
+```{r}
+start_datetime = strptime("2007-01-01", format="%Y-%m-%d")
+
+start_datetime = as.POSIXct("2007-01-01T00:00:00Z", 
+                                         format = "%Y-%m-%dT%H:%M:%SZ")
+
+loans$disbursal_start_time = difftime(loans$disbursal_datetime, 
+                                       start_datetime, units="days")
+
+pairs.panels(loans[, c(8, 17, 18, 14, 16, 19:22, 23)])
+```
+
+The only real correlation here is with `funded_timediff` -- which would indicate that as the calendar time wore on, it took slightly longer for the average loan to get funded. Nothing else stands out.
+
 ## Summary
 
 We have done a fairly thorough sweep of the pairwise relationship between our variables, including some new rate variables that we created. From here, we could go on to explore multiple variables at once, or we could consider transforming or segmenting variables and reexamining pairwise combinations. Given the number of directions we could move in, perhaps it would be wise to step back and ask what it is we're even trying to learn or predict -- beyond mere "data surprises."
@@ -598,7 +614,7 @@ But first, here is what we have learned:
 * The country of the borrower tell us much more about a loan's amount. There is also greater variance within countries when it comes to gender and number of borrowers. When we condition on country, we also see a greater variance by sector than we do unconditionally.
 * Country also seems to account for some of the variance in the pipeline variables: number of lenders, funding time, and payback time. To some extent, this may be a conflation of country with loan amount, since these two are correlated.
 * Time series are complicated by the irregular observation intervals. That said, we see average loan amount and number of borrowers grow over time. Sector-wise, retail and agriculture loan amount grow in a fairly stable manner, food less so. Not all countries exhibit growth over the five-year period of the loan data set. Funding and repayment time both trend up, but both display curious maxima.
-* When we consider rates, certain correlations disappear on the lender side. The loan amount, the gender composition of the borrowing group, the borrower's country, and the borrower's sector -- none of these impact the individual borrower's average contribution or the amount of money donated by the Kiva lending community per day.
+* When we consider rates, certain correlations disappear on the lender side. The loan amount, the gender composition of the borrowing group, the borrower's country, and the borrower's sector -- none of these impact the individual borrower's average contribution or the amount of money donated by the Kiva lending community per day. The calender time is weakly correlated with the funding time.
 * On the borrower side, we do see some interesting relationships between rates and other variables. Repayment rate is strongly correlated with loan amount and with number of borrowers, and weakly negatively correlated with gender composition. Furthermore, a moderate amount of the variance in borrower rates (USD per borrower) is explained by the borrower's country, while a smaller amount of the variance in repayment rate is explained by country. 
 
 We also encountered some curiosities in the data that we should address before moving on. Specifically:
