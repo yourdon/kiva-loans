@@ -11,11 +11,11 @@ Each part of the analysis can be viewed online, thanks to RawGit.
 * Summary and Highlights (coming soon)
 * 07: The Single-Borrower Class (coming soon)
 * 06: Tree and Forest Models (coming soon)
-* 05: Repayment Rate: Linear Models
-* 04: Goal Setting and Subsetting
-* 03: Analysis in Two Variables
-* 02: Analysis in One Variable
-* 01: Loan Preprocessing
+* [05: Repayment Rate: Linear Models](https://cdn.rawgit.com/yourdon/kiva-loans/master/05-Repayment_Rate_Linear_Models.html)
+* [04: Goal Setting and Subsetting](https://cdn.rawgit.com/yourdon/kiva-loans/master/04-Goal_Setting_and_Subsetting.html)
+* [03: Analysis in Two Variables](https://cdn.rawgit.com/yourdon/kiva-loans/master/03-Analysis_in_Two_Variables.html)
+* [02: Analysis in One Variable](https://cdn.rawgit.com/yourdon/kiva-loans/master/02-Analysis_in_One_Variable.html)
+* [01: Loan Preprocessing](https://cdn.rawgit.com/yourdon/kiva-loans/master/01-Loan_Preprocessing.html)
 
 The `html` files can also be downloaded and viewed locally with any browser.
 
