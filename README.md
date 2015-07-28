@@ -1,7 +1,7 @@
 Kiva Loan Analysis
 =================================
 
-These files present analysis and predictive modeling of loan repayment rates for the [Kiva loan data set](http://build.kiva.org/docs/data/snapshots), based on a snapshot taken at 2015-07-10 20:10:00 UTC. The initial parts are concerned with preprocessing and simple profiling, so readers with limited time may wish to ready [the summary]((https://cdn.rawgit.com/yourdon/kiva-loans/c92cc58fa86c00be2a9933eb0618a1517527d497/Running_Summary_and_Highlights.html) or skip the earlier parts. 
+These files present analysis and predictive modeling of loan repayment rates for the [Kiva loan data set](http://build.kiva.org/docs/data/snapshots), based on a snapshot taken at 2015-07-10 20:10:00 UTC. The initial parts are concerned with preprocessing and simple profiling, so readers with limited time may wish to ready [the summary](https://cdn.rawgit.com/yourdon/kiva-loans/c92cc58fa86c00be2a9933eb0618a1517527d497/Running_Summary_and_Highlights.html) or skip the earlier parts. 
 
 Running
 -------
