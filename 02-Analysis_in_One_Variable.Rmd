@@ -1,7 +1,7 @@
 02 Kiva Loans: Analysis in One Variable
 =======================================
 
-In this file, we take our processed Kiva loan file, which is a sample of the full dataset, and try to answer some basic questions about each variable. Because we're working only with a sample, we'll concern ourselves with sample statistics (e.g. number of lenders per loan), relative comparisons, rates, and trends, but not with global counts that our partial sample would poorly approximate (e.g. loans per year).
+In this file, we take our processed Kiva loan file, which is a sample of the full data set, and try to answer some basic questions about each variable. Because we're working only with a sample, we'll concern ourselves with sample statistics (e.g. number of lenders per loan), relative comparisons, rates, and trends, but not with global counts that our partial sample would not able to approximate (e.g. loans per year).
 
 Let's load the file and get going.
 
@@ -39,9 +39,9 @@ Roughly 2% of the data in the sample are missing. Which fields have the most mis
 lapply(lapply(loans, is.na), mean)
 ```
 
-All of the missing data occurs in date-related fields. This suggests we'll encounter NA's whenever we have breakages in the loan pipeline -- for example, when a loan doesn't get disbursed or doesn't get repaid.
+All of the missing data occurs in date-related fields. This suggests we'll encounter NAs whenever we have breakages in the loan pipeline -- for example, when a loan doesn't get disbursed or doesn't get repaid.
 
-Let's take a look at all the variables in our sampled loan file.
+Let's take a look at all the variables in our sampled loan file in turn.
 
 ## Status
 
@@ -58,7 +58,7 @@ lapply(lapply(loans[loans$status == "paid",], is.na), mean)
 sum(is.na(loans[loans$status == "paid", ])) / (13788*18)
 ```
 
-Yes, there's no missing data when we look only at repaid loans. So let's use that data.
+Yes, there's no missing data when we look only at repaid loans. So let's use that subset of the data.
 
 ```{r, warning=FALSE, message=FALSE}
 paid = loans[loans$status == "paid", ]
@@ -69,7 +69,9 @@ paid = loans[loans$status == "paid", ]
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=paid, aes(x=as.factor(paid[,3]))) + 
   geom_histogram(fill="lightblue") + labs(x="sector") +
+  ggtitle("Loans by sector") +
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+#ggsave(filename="Loans_by_sector.png")
 summary(as.factor(paid[,3]))
 ```
 
@@ -82,7 +84,8 @@ partners = table(as.factor(paid[,4]))
 partners_df = as.data.frame(partners)
 ggplot(partners_df, aes(x = reorder(Var1, -Freq), y = Freq)) + 
   geom_bar(aes(fill=Freq), stat="identity") + guides(fill=FALSE) +
-  labs(x="partner") + scale_x_discrete(breaks=NULL)
+  labs(x="partner") + scale_x_discrete(breaks=NULL) + 
+  ggtitle("Loans by partner")
 quantile(partners)
 ```
 
@@ -92,7 +95,7 @@ We see a lot of different partners with a large variance in their loan activity.
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=paid, aes(x=paid[,5])) + geom_bar(fill="lightblue") +
-  labs(x="lender")
+  labs(x="Lender count") + ggtitle("Loans by lender count")
 summary(paid[,5])
 ```
 
@@ -106,15 +109,16 @@ It is.
 
 ## Countries
 
-We have 49 unique countries in our sample (and quite possibly more in the full dataset). Some claim a disproportionate number of the loans:
+We have 49 unique countries in our sample (and quite possibly more in the full data set). Some claim a disproportionate number of the loans:
 
 ```{r, warning=FALSE, message=FALSE}
 countries = table(as.factor(paid$location.country_code))
 countries_df = as.data.frame(countries)
 ggplot(countries_df, aes(x = reorder(Var1, -Freq), y = Freq)) + 
   geom_bar(aes(fill=Freq), stat="identity") + guides(fill=FALSE) +
-  labs(x="country") +
+  labs(x="Country") + ggtitle("Loans by country") +
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
+#ggsave(filename="Loans_by_country.png")
 quantile(countries)
 ```
 
@@ -134,7 +138,8 @@ There are only 1 or 2 languages per description as a rule. Which languages are m
 ```{r, warning=FALSE, message=FALSE}
 langs = as.data.frame(unlist(paid[,6]))
 colnames(langs) ="lang"
-ggplot(data=langs, aes(x=lang)) + geom_histogram(fill="lightblue") + labs(x="language")
+ggplot(data=langs, aes(x=lang)) + geom_histogram(fill="lightblue") + 
+  labs(x="language", title="Loan descriptions by language")
 table(as.factor(unlist(paid[,6])))
 ```
 
@@ -150,7 +155,7 @@ ggplot(data=paid, aes(x=description.avgchar)) + geom_bar(fill="lightblue") +
 summary(paid$description.avgchar)
 ```
 
-We see a postively skewed distribution here. There's a long tail, with a max at around 7000 characters. (Remember that we have averaged over languages, so this isn't the effect of lots of translations.) Let's take a quick look at this data point:
+We see a positively skewed distribution here. There's a long tail, with a max at around 7000 characters. (Remember that we have averaged over languages, so this isn't the effect of lots of translations.) Let's take a quick look at this data point:
 
 ```{r, warning=FALSE, message=FALSE}
 loans[which.max(loans$description.avgchar),]
@@ -164,7 +169,8 @@ We have two pieces of data regarding the borrowers: their number and the fractio
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=paid, aes(x=b.num)) + geom_bar(fill="lightblue") +
-  labs(x="Number of borrowers")
+  labs(x="Number of borrowers", title="Loans by number of borrowers")
+#ggsave(filename="Loans_by_bnum.png")
 summary(paid$b.num)
 ```
 
@@ -174,7 +180,8 @@ What about gender?
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=paid, aes(x=b.female)) + geom_bar(fill="lightblue") +
-  labs(x="Ratio of female borrowers")
+  labs(x="Ratio of female borrowers", title="Loans by gender composition")
+#ggsave(filename="Loans_by_bfem.png")
 summary(paid$b.female)
 ```
 
@@ -186,7 +193,8 @@ What is the distribution of loan amounts (in USD)?
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=paid, aes(x=terms.loan_amount)) + geom_bar(fill="lightblue") +
-  labs(x="Loan amount")
+  labs(x="Loan amount", title="Loans by loan amount")
+#ggsave(filename="Loans_by_loan_amount.png")
 summary(paid$terms.loan_amount)
 ```
 
@@ -217,7 +225,8 @@ These are from early on in the record keeping. Perhaps they were the first loans
 ```{r}
 newpaid = paid[paid$funded_timediff > 0, ]
 ggplot(data=newpaid, aes(x=funded_timediff)) + geom_bar(fill="lightblue") +
-  labs(x="Funding time")
+  labs(x="Funding time", title="Loans by funding time")
+#ggsave(filename="Loans_by_funding_time.png")
 summary(newpaid$funded_timediff)
 ```
 
@@ -231,7 +240,7 @@ The `disbursal_timediff` variable accounts for the time difference between when 
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=newpaid, aes(x=disbursed_timediff)) + geom_bar(fill="lightblue") +
-  labs(x="Disbursal time")
+  labs(x="Disbursal time", title="Loans by disbursal time")
 summary(newpaid$disbursed_timediff)
 ```
 
@@ -243,7 +252,8 @@ The `paid_timediff` variable accounts for the time difference between when a loa
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=newpaid, aes(x=paid_timediff)) + geom_bar(fill="lightblue") +
-  labs(x="Repayment time")
+  labs(x="Repayment time", title="Loans by repayment time")
+#ggsave(filename="Loans_by_repayment_time.png")
 summary(newpaid$paid_timediff)
 ```
 
@@ -289,7 +299,7 @@ Additionally, we generated some ideas for how we might query the data as we move
 * Looking at loans that took a relatively long time to get funded
 * Looking at loans that took a relatively long time to get repaid
 
-As a last step, we'll write our most polished dataframe to a new JSON file for use in the next round of analysis.
+As a last step, we'll write our most polished data frame to a new JSON file for use in the next round of analysis.
 
 ```{r, warning=FALSE, message=FALSE}
 newpaid_json = jsonlite::toJSON(newpaid)
