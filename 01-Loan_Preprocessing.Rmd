@@ -47,7 +47,7 @@ We want to pare down the initial field set, if possible. A look at [Kiva's docum
 
  [1] "id"                                  
  [3] "status" -- status of the loan                            
- [9] "sector" -- broad category for nature of the loan (e.g. Faming)                                          
+ [9] "sector" -- broad category for nature of the loan (e.g. Farming)                                          
 [13] "partner_id" -- id of intermediate partner (not lender)                                         
 [14] "posted_date" -- date when loan was publicized for lenders                                        
 [17] "lender_count" -- number of lenders in on loan                                          
@@ -120,7 +120,7 @@ flatloan001$paid_timediff = difftime(flatloan001$paid_datetime,
                                      flatloan001$disbursal_datetime, units="days")
 ```
 
-We observe here that some of the disbursed_timediff's are negative. These negative values seems nonsensical -- how can a loan be funded before it's posted? -- but one of [Kiva's stated practices](http://www.kiva.org/about/how/even-more) is to "pre-disburse" loans, meaning that the funds are already disbursed to borrowers before the loans are posted, viewed, and "funded" by Kiva lenders. Determining which loans have pre-disbursed, partially or wholly, seems like it can be determined only by our new timediff variable. If we wish to be cautious, we should consider divorcing the posting and funding steps from the rest of the temporal pipeline. In other words, we should be able to relate when a loan was **posted** (by Kiva) meaningfully to when it was **funded** (by lenders), and when a loan was **disbursed** (by partners) meaningfully to when it was **paid** (by borrowers), but it would take some acrobatic guesswork to connect the posting and funding steps to the disbursal and repayment steps.
+We observe here that some of the disbursed_timediff's are negative. These negative values seems nonsensical -- how can a loan be funded before it's posted? -- but one of [Kiva's stated practices](http://www.kiva.org/about/how/even-more) is to "pre-disburse" loans, meaning that the funds are disbursed to borrowers before the loans are posted, viewed, and "funded" by Kiva lenders. Determining which loans have been pre-disbursed, partially or wholly, seems like it can be determined only by our new timediff variable. If we wish to be cautious, we should consider divorcing the posting and funding steps from the rest of the temporal pipeline. In other words, we should be able to relate when a loan was **posted** (by Kiva) meaningfully to when it was **funded** (by lenders), and when a loan was **disbursed** (by partners) meaningfully to when it was **paid** (by borrowers), but it would take some guesswork to connect the posting and funding steps to the disbursal and repayment steps.
 
 # Borrower data
 
@@ -174,7 +174,7 @@ names(flatloan001)
 
  [1] "id"                                  
  [3] "status" -- status of the loan                            
- [9] "sector" -- broad category for nature of the loan (e.g. Faming)                                          
+ [9] "sector" -- broad category for nature of the loan (e.g. Naming)                                          
 [13] "partner_id" -- id of intermediate partner (not lender)                                        
 [17] "lender_count" -- number of lenders in on loan                                             
 [25] "description.languages" -- list of languages that description is in                                                                
@@ -296,7 +296,7 @@ It did. Now let's test it on a new file:
 testpare002 = loan_preprocessing("72.json")
 ```
 
-Smooth sailing. We'll now loop through all the files in the directory, run the preprocessing function on them, and concatenate them into one dataframe.
+Smooth sailing. We'll now loop through all the files in the directory, run the preprocessing function on them, and concatenate them into one data frame.
 
 # File concatenation and sampling
 
@@ -310,7 +310,7 @@ for (file in files[-1]){
 }
 ```
 
-Now we have a 152,000 x 18 dataframe with all loans and all preliminary variables of interest. The fact that no exceptions were thrown suggests that all the other JSON files were similarly formatted. One thing that we should confirm, though, is that we have no duplicate records.
+Now we have a 152,000 x 18 data frame with all loans and all preliminary variables of interest. The fact that no exceptions were thrown suggests that all the other JSON files were similarly formatted. One thing that we should confirm, though, is that we have no duplicate records.
 
 ```{r}
 sum(duplicated(bound_df$id))
@@ -326,7 +326,7 @@ sample_rows = sample(dim(bound_df)[1], 15000)
 sample_df = bound_df[sample_rows,]
 ```
 
-Finally, we'll export these dataframes as files for use elsewhere. We have to turn our difftime objects into regular numeric expressions first, though.
+Finally, we'll export these data frames as files for use elsewhere. We have to turn our difftime objects into regular numeric expressions first, though.
 
 ```{r, warning=FALSE, message=FALSE}
 # sample

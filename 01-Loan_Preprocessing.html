@@ -63,7 +63,7 @@ img {
 
 <div id="kiva-loans-preprocessing" class="section level1">
 <h1>01 Kiva Loans: Preprocessing</h1>
-<p>In this Rmd file, we do some some very minimal exploration of our JSON loan files, along with a bit of preprocessing and file concatenation, before moving on to more serious exploratory data analysis in the next file.</p>
+<p>In this file, we do some some very minimal exploration of our JSON loan files, along with a bit of preprocessing and file concatenation, before moving on to more serious exploratory data analysis in the next file.</p>
 </div>
 <div id="file-loading-field-selection" class="section level1">
 <h1>File loading &amp; field selection</h1>
@@ -164,11 +164,11 @@ names(flatloan001)</code></pre>
 </ol>
 <p>We will focus our analysis on two different types of questions:</p>
 <ol style="list-style-type: decimal">
-<li><strong>What are the intra-relationships among loan initialization features?</strong> Questions of this type will allow us to understand how loans vary from country to country, demographic to demographic, how descriptions relate to loan amounts, and so forth.</li>
-<li><strong>What are the inter-relationships between loan initialization features and features down the pipeline?</strong> Questions of this type will allow us to ask how the features of the loan – amount, country, demographics – relate to how that loan is funded, disbursed, and repaid.</li>
+<li><strong>What are the intra-relationships among loan initialization variables?</strong> Questions of this type will lead us toward understanding how loans vary from country to country, demographic to demographic, how descriptions relate to loan amounts, and so forth.</li>
+<li><strong>What are the inter-relationships between loan initialization variables and variables down the pipeline?</strong> Questions of this type will lead us toward understanding how the features of the loan – amount, country, demographics – relate to how that loan is funded, disbursed, and repaid.</li>
 </ol>
 <p>We want to pare down the initial field set, if possible. A look at <a href="http://build.kiva.org/docs/data/loans">Kiva’s documentation</a> and a scan of the JSON suggest the following fields will be interesting and easy enough to work with:</p>
-<p>[1] “id”<br /> [3] “status” – status of the loan<br /> [9] “sector” – broad category for nature of the loan (e.g. Faming)<br />[13] “partner_id” – id of intermediate partner (not lender)<br />[14] “posted_date” – date when loan was publicized for lenders<br />[17] “lender_count” – number of lenders in on loan<br />[21] “borrowers” – names and genders of borrower(s)<br />[23] “funded_date” – date when loan was covered by lenders<br />[24] “paid_date” – date when loan was repaid by borrower<br />[25] “description.languages” – list of languages that description is in<br />[26] “description.texts.en”<br />[27] “description.texts.es”<br />[28] “description.texts.id”<br />[29] “description.texts.fr”<br />[30] “description.texts.ru”<br />[31] “description.texts.vi”<br />[34] “location.country_code” – country code of borrower<br />[40] “terms.disbursal_date” – date when loan money was given to borrower<br />[45] “terms.loan_amount” – amount of loan in USD</p>
+<p>[1] “id”<br /> [3] “status” – status of the loan<br /> [9] “sector” – broad category for nature of the loan (e.g. Farming)<br />[13] “partner_id” – id of intermediate partner (not lender)<br />[14] “posted_date” – date when loan was publicized for lenders<br />[17] “lender_count” – number of lenders in on loan<br />[21] “borrowers” – names and genders of borrower(s)<br />[23] “funded_date” – date when loan was covered by lenders<br />[24] “paid_date” – date when loan was repaid by borrower<br />[25] “description.languages” – list of languages that description is in<br />[26] “description.texts.en”<br />[27] “description.texts.es”<br />[28] “description.texts.id”<br />[29] “description.texts.fr”<br />[30] “description.texts.ru”<br />[31] “description.texts.vi”<br />[34] “location.country_code” – country code of borrower<br />[40] “terms.disbursal_date” – date when loan money was given to borrower<br />[45] “terms.loan_amount” – amount of loan in USD</p>
 <p>Before we begin exploring in earnest, though, let’s do a few more preprocessing maneuvers.</p>
 </div>
 <div id="ids-and-duplicates" class="section level1">
@@ -210,7 +210,7 @@ flatloan001$disbursed_timediff = difftime(flatloan001$disbursal_datetime,
                                           flatloan001$funded_datetime, units=&quot;days&quot;)
 flatloan001$paid_timediff = difftime(flatloan001$paid_datetime,
                                      flatloan001$disbursal_datetime, units=&quot;days&quot;)</code></pre>
-<p>We observe here that some of the disbursed_timediff’s are negative. These negative values seems nonsensical – how can a loan be funded before it’s posted? – but one of <a href="http://www.kiva.org/about/how/even-more">Kiva’s stated practices</a> is to “pre-disburse” loans, meaning that the funds are already disbursed to borrowers before the loans are posted, viewed, and “funded” by Kiva lenders. Determining which loans have pre-disbursed, partially or wholly, seems like it can be determined only by our new timediff variable. If we wish to be cautious, we should consider divorcing the posting and funding steps from the rest of the temporal pipeline. In other words, we should be able to relate when a loan was <strong>posted</strong> (by Kiva) meaningfully to when it was <strong>funded</strong> (by lenders), and when a loan was <strong>disbursed</strong> (by partners) meaningfully to when it was <strong>paid</strong> (by borrowers), but it would take some acrobatic guesswork to connect the posting and funding steps to the disbursal and repayment steps.</p>
+<p>We observe here that some of the disbursed_timediff’s are negative. These negative values seems nonsensical – how can a loan be funded before it’s posted? – but one of <a href="http://www.kiva.org/about/how/even-more">Kiva’s stated practices</a> is to “pre-disburse” loans, meaning that the funds are disbursed to borrowers before the loans are posted, viewed, and “funded” by Kiva lenders. Determining which loans have been pre-disbursed, partially or wholly, seems like it can be determined only by our new timediff variable. If we wish to be cautious, we should consider divorcing the posting and funding steps from the rest of the temporal pipeline. In other words, we should be able to relate when a loan was <strong>posted</strong> (by Kiva) meaningfully to when it was <strong>funded</strong> (by lenders), and when a loan was <strong>disbursed</strong> (by partners) meaningfully to when it was <strong>paid</strong> (by borrowers), but it would take some guesswork to connect the posting and funding steps to the disbursal and repayment steps.</p>
 </div>
 <div id="borrower-data" class="section level1">
 <h1>Borrower data</h1>
@@ -335,7 +335,7 @@ flatloan001$paid_timediff = difftime(flatloan001$paid_datetime,
 ## [63] &quot;b.num&quot;                                               
 ## [64] &quot;b.female&quot;                                            
 ## [65] &quot;b.pictured&quot;</code></pre>
-<p>[1] “id”<br /> [3] “status” – status of the loan<br /> [9] “sector” – broad category for nature of the loan (e.g. Faming)<br />[13] “partner_id” – id of intermediate partner (not lender)<br />[17] “lender_count” – number of lenders in on loan<br />[25] “description.languages” – list of languages that description is in<br />[34] “location.country_code” – country code of borrower<br />[45] “terms.loan_amount” – amount of loan in USD<br />[55] “description.avgchar”<br />[56] “posted_datetime”<br />[57] “funded_datetime”<br />[58] “paid_datetime”<br />[59] “disbursal_datetime”<br />[60] “funded_timediff”<br />[61] “disbursed_timediff”<br />[62] “paid_timediff”<br />[63] “b.num”<br />[64] “b.female”</p>
+<p>[1] “id”<br /> [3] “status” – status of the loan<br /> [9] “sector” – broad category for nature of the loan (e.g. Naming)<br />[13] “partner_id” – id of intermediate partner (not lender)<br />[17] “lender_count” – number of lenders in on loan<br />[25] “description.languages” – list of languages that description is in<br />[34] “location.country_code” – country code of borrower<br />[45] “terms.loan_amount” – amount of loan in USD<br />[55] “description.avgchar”<br />[56] “posted_datetime”<br />[57] “funded_datetime”<br />[58] “paid_datetime”<br />[59] “disbursal_datetime”<br />[60] “funded_timediff”<br />[61] “disbursed_timediff”<br />[62] “paid_timediff”<br />[63] “b.num”<br />[64] “b.female”</p>
 <pre class="r"><code>fieldlist = c(&quot;id&quot;, &quot;status&quot;, &quot;sector&quot;, &quot;partner_id&quot;, &quot;lender_count&quot;,
                 &quot;description.languages&quot;, &quot;location.country_code&quot;, 
                 &quot;terms.loan_amount&quot;, &quot;description.avgchar&quot;, 
@@ -426,7 +426,7 @@ loan_preprocessing = function(jsonfile) {
 <pre class="r"><code>testpare001 = loan_preprocessing(&quot;1.json&quot;)</code></pre>
 <p>It did. Now let’s test it on a new file:</p>
 <pre class="r"><code>testpare002 = loan_preprocessing(&quot;72.json&quot;)</code></pre>
-<p>Smooth sailing. We’ll now loop through all the files in the directory, run the preprocessing function on them, and concatenate them into one dataframe.</p>
+<p>Smooth sailing. We’ll now loop through all the files in the directory, run the preprocessing function on them, and concatenate them into one data frame.</p>
 </div>
 <div id="file-concatenation-and-sampling" class="section level1">
 <h1>File concatenation and sampling</h1>
@@ -437,7 +437,7 @@ for (file in files[-1]){
   new_bind = rbind(bound_df, new_df) 
   bound_df = new_bind
 }</code></pre>
-<p>Now we have a 152,000 x 18 dataframe with all loans and all preliminary variables of interest. The fact that no exceptions were thrown suggests that all the other JSON files were similarly formatted. One thing that we should confirm, though, is that we have no duplicate records.</p>
+<p>Now we have a 152,000 x 18 data frame with all loans and all preliminary variables of interest. The fact that no exceptions were thrown suggests that all the other JSON files were similarly formatted. One thing that we should confirm, though, is that we have no duplicate records.</p>
 <pre class="r"><code>sum(duplicated(bound_df$id))</code></pre>
 <pre><code>## [1] 0</code></pre>
 <p>Good: no duplicates.</p>
@@ -445,7 +445,7 @@ for (file in files[-1]){
 <pre class="r"><code>set.seed(1)
 sample_rows = sample(dim(bound_df)[1], 15000) 
 sample_df = bound_df[sample_rows,]</code></pre>
-<p>Finally, we’ll export these dataframes as files for use elsewhere. We have to turn our difftime objects into regular numeric expressions first, though.</p>
+<p>Finally, we’ll export these data frames as files for use elsewhere. We have to turn our difftime objects into regular numeric expressions first, though.</p>
 <pre class="r"><code># sample
 sample_df$funded_timediff = as.numeric(sample_df$funded_timediff)
 sample_df$disbursed_timediff = as.numeric(sample_df$disbursed_timediff)
