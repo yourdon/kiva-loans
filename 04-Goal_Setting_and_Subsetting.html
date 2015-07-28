@@ -237,7 +237,7 @@ summary(loans2)</code></pre>
 <p>Now we want to separate single-borrower groups from multiple-borrower groups:</p>
 <pre class="r"><code>b.mult = loans2$b.group == TRUE
 loans2.mb = loans2[b.mult,]
-loans2.sb = loans2[-b.mult,]</code></pre>
+loans2.sb = loans2[!b.mult,]</code></pre>
 <p>We have almost 19,000 observations in the multiple-borrower group. Let’s sample the same amount from the single-borrower group, save all three data frames as JSON files, and then move on to modeling.</p>
 <pre class="r"><code>set.seed(1)
 sample_rows = sample(dim(loans2.sb)[1], 19000) 
