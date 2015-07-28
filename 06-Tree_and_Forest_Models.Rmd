@@ -65,7 +65,7 @@ The error is 3.63, which is quite a bit worse than the multiple linear regressio
 
 ## Random forests
 
-The `randomForest` package can handle factors with more than 32 levels, so we will set aside the `tree` package. Of course, with a 50-factor level, we are in danger of overfitting. Fortunately, avoiding overfitting is exactly what random forests were designed to do. By aggregating trees that are built from a random subset of the feature space, we avoid constructing a model with a high variance. A related approach is bagging, but because bagging produces correlated trees, the resulting aggregreation may still have a high variance out of bag. 
+The `randomForest` package can handle factors with more than 32 levels, so we will set aside the `tree` package. Of course, with a 50-factor level, we are in danger of overfitting. Fortunately, avoiding overfitting is exactly what random forests were designed to do. By aggregating trees that are built from a random subset of the feature space, we avoid constructing a model with a high variance. A related approach is bagging, but because bagging produces correlated trees, the resulting aggregation may still have a high variance out of bag. 
 
 Let's see how a random forest performs.
 
@@ -81,14 +81,14 @@ loans.mb.forest.pred = predict(loans.mb.forest, newdata=loans.mb.test.rf)
 (mean((loans.mb.forest.pred - loans.mb.test.rf$r.rate)^2))^.5
 ```
 
-This is our best result yet: an error of 2.51 USD per day. We can look at the variable importances in order to get a gauge for what the random forest is focused on.
+This is our best result yet: an error of 2.51 USD per day. We can look at the variable importance measures in order to get a gauge for what the random forest is focused on.
 
 ```{r, warning=FALSE, message=FALSE}
 importance(loans.mb.forest)
 varImpPlot(loans.mb.forest)
 ```
 
-We see two different measures of importance: (1) the percent increase in MSE that occurs when a certain feature is *removed* from the model, and (2) the increase in node purity when that feature is removed from the model. (Node purity is a similarity metric that essentially describes the variance of the response within a leaf of the aggregate tree.) Note that the loan amount is the best feature for increasing node purity while country is the best feature for reducing the MSE. This seeming incongruity reflects the linear (or well-behaved) relationship of loan amount to repayment rate and the non-linear (but still information-rich) relationship of country to repayment rate. Branching on the loan amount tends to produce leaves that are similar to one another; it is a more reliable, stable, and linear feature. By another measure, however, the borrower's country is more useful. The random forest takes advantage of both.
+We see two different measures of importance: (1) the percent increase in MSE that occurs when a certain feature is *removed* from the model, and (2) the increase in node purity when that feature is removed from the model. (Node purity is a similarity metric that essentially describes the variance of the response within a leaf of the aggregate tree.) Note that the loan amount is the feature that increases node purity the most, while country is the feature that reduces the test MSE the most. Evidently, both features are useful, and the random forest takes advantage of both.
 
 We can look at a plot of the residuals to get a sense for the shape of the error profile.
 
@@ -99,7 +99,7 @@ qplot(x=rf.preds, y=residuals) + geom_point(color="blue") +
   xlab("Predicted values") + ylab("Residuals")
 ```
 
-Evidently, the model is underpredicting the true reapyment rate for a handful of loans. Doubtless, this handful of values is a big source of the remaining error. As a quick experiment, what happens to the error if we remove loans (from both the training and the test set) whose repayment rates are in the upper decile?
+The model is under-predicting the true repayment rate for a handful of loans. Doubtless, this handful of observations is a big source of the remaining error. As a quick experiment, what happens to the error if we remove loans (from both the training and the test set) whose repayment rates are in the upper decile?
 
 ```{r, warning=FALSE, message=FALSE}
 quantile(loans.mb$r.rate, seq(0, 1, 0.1))
@@ -131,7 +131,7 @@ This tells us that the model is doing fairly well for the main mass of loans, ev
 What did we learn in this part of the analysis?
 
 * In moving from a multiple regression model to a decision tree that used only the loan amount and the continent, our root MSE increased from 2.94 USD per day to 3.63 USD per day.
-* However, when we tried a random forest and took advantage of the country variable, our root MSE dropped to 2.55 USD. The random forest's variable importance measure told us that the model was trying to incorporate two disparate profiles of information: the smoother, more pure loan amount and the jumpier, but still information-rich country variable. 
+* However, when we tried a random forest and took advantage of the country variable, our root MSE dropped to 2.55 USD. The random forest's variable importance measures told us that both the loan amount and the country are useful for prediction. The former leads to the biggest increase in node purity, while the latter leads to the biggest decrease in MSE. 
 * Examining the residuals plot for the random forest model, we saw that when the model failed badly, it tended to under-predict the repayment rate, sometimes drastically. When we excluded this upper decile from the analysis, the root MSE of the random forest dropped to 1.51 USD and the residuals plot looked healthier, suggesting that the model is only struggling with extremes. 
 
 Before considering how to extending the model to deal with these extremes, we will return to the single-borrower class, using the results from our analysis of the (comparably simpler) multiple-borrower class to speed things along.
