@@ -22,7 +22,7 @@ loans.sb = na.omit(loans.sb) # just to be safe
 
 ## Simple linear models
 
-So far, the variable that has seemed most promising when it comes to predicting the repayment rate is the loan amount. Let's try regressing only on that variable, if only to set a baseline. We'll begin with the multiple-borrower data set, which we know to be an easier case. After trying out linear models here and tree-based models in the next part of this analysis, we'll return to the single-borrower case.
+So far, the variable that has seemed most promising when it comes to predicting the repayment rate is the loan amount. Let's try regressing only on that variable, if only to set a baseline. We'll begin with the multiple-borrower class, which we know to be an easier case, and return to the single-borrower class later.
 
 The `glm` class of functions from the `boot` package will standardize our features for us, it should be noted.
 
@@ -219,15 +219,11 @@ exp(mean((glm.loan_amount.cont.preds - log(loans.mb.test$r.rate))^2))^.5
 
 No, we're still hovering around an error of 1.09 days.
 
-## The Lasso
-
-The BIC optimization we employed in our forward-selection routine above is one of way of balancing the information that each predictor gives us against the overfitting it threatens to introduce. Another method, one that does not use ordinary least squares, is the lasso. We'll try that out here to see if we can add features to our model in a way that gets our error below 1 USD per day. 
-
 ## Summary
 
 What have we learned?
 
-* For the multiple borrower class, if we do a log transform the repayment rate, we are able to predict this rate to a reasonable approximation by regressing on the loan amount alone. The root MSE is 1.11 USD per day.  
-* Adding more features, higher-order terms, or interaction terms helped our residual plots and QQ plots look better, but they didn't help our error. We seemed to plateau around 1.09 USD per day. 
+* For the multiple borrower class, if we log-transform the response variable, we are able to predict a loan's repayment rate to a reasonable approximation by regressing on the loan amount alone. The root MSE is 1.11 USD per day.  
+* Adding more features, higher-order terms, or interaction terms helped our residual plots and QQ plots look better, but they didn't help our error much. The various models seem to plateau around 1.09 USD per day, perhaps because there are inherently non-linear phenomena in our data. 
 
-Next, we look at tree-based models for the multiple-borrower class, in order to see if we can bring our error down. After that, we move on to the single-borrower class.
+Next, we look at tree-based models for the multiple-borrower class, in order to see if we can bring our error down.
