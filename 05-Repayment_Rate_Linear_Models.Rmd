@@ -20,9 +20,7 @@ loans.mb = na.omit(loans.mb) # just to be safe
 
 ## Simple linear models
 
-So far, the variable that has seemed most promising when it comes to predicting the repayment rate is the loan amount. Let's try regressing only on that variable, if only to set a baseline. We'll begin with the multiple-borrower class, which we know to be an easier case, and return to the single-borrower class later.
-
-The `glm` class of functions from the `boot` package will standardize our features for us, it should be noted.
+So far, the variable that has seemed most promising when it comes to predicting the repayment rate is the loan amount. Let's try regressing only on that variable, simply to set a baseline. We'll begin with the multiple-borrower class, which we know to be an easier case, and return to the single-borrower class later. (The `glm` functions will standardize our features for us, it should be noted.)
 
 ```{r, warning=FALSE, message=FALSE}
 # create test and training sets
@@ -35,7 +33,7 @@ glm.loan_amount.fit = glm(r.rate ~ terms.loan_amount, data=loans.mb.train)
 summary(glm.loan_amount.fit)  
 ```
 
-Our coefficient and intercept are both significant. For future comparison, we note that the AIC is 50,219. (The penalty term is quite low, since in this first model, d = 1.) Another baseline we want is the mean squared error (MSE). Let's calculate that now.
+Our coefficient and intercept are both significant. For future comparison, we note that the AIC is 50,219. (The penalty term is quite low, since in this first model, d = 1: there is only one predictor.) Another baseline we want is the root mean squared error (root MSE). Let's calculate that now.
 
 ```{r, warning=FALSE, message=FALSE}
 glm.loan_amount.preds = predict(glm.loan_amount.fit, loans.mb.test,
@@ -43,7 +41,7 @@ glm.loan_amount.preds = predict(glm.loan_amount.fit, loans.mb.test,
 (mean((glm.loan_amount.preds - loans.mb.test$r.rate)^2))^.5
 ```
 
-So the root MSE is about 3.55 USD per day. Given that the mean repayment rate in our test set is 8.11 USD per day, this is not very good.
+So the root MSE is about 3.55 USD per day. Given that the median repayment rate in our test set is 4.79 USD per day, and that the mean is 8.15 USD per day, this is not very good.
 
 Do the model plots reveal anything of note?
 
@@ -137,7 +135,7 @@ hc_vec = high_countries[loans.mb$location.country_code] == TRUE
 loans.mb.hc = loans.mb[hc_vec, ] 
 ```
 
-We will allow up to 100 variables -- the high number is due to the fact that each country (minus 1) and each sector (minus 1) will become an indicator variable. We'll then see how each of the best p-dimensional model fares against all the best models in features spaces of other dimensions.
+We will allow up to 100 variables -- the high number is due to the fact that each country (minus 1) and each sector (minus 1) will become an indicator variable. We'll then see how each of the best p-dimensional models fares against all the best models with a different number of features.
 
 ```{r, error=FALSE, warning=FALSE}
 fwd.fit = regsubsets(r.rate ~ terms.loan_amount + b.male + b.num +
@@ -174,11 +172,11 @@ fwd.pred = fwd.test[, names(coef.22)] %*% coef.22
 (mean((loans.mb.test$r.rate - fwd.pred)^2))^.5
 ```
 
-We have a root MSE of 2.94 USD per day, a definite improvement over the 3.42 USD per day that our polynomial regression on the loan amount got us. Although this feature comes at the cost of model complexity, many of these additional features can be interpreted just as a single country feature (before each country was dichotomized). The bigger problem, one could argue is the size of the error.
+We have a root MSE of 2.94 USD per day, a definite improvement over the 3.42 USD per day that our polynomial regression on the loan amount got us. Although this improvement comes at the cost of model complexity, many of these additional "features" can be interpreted just as a single country feature (since each country gets dichotomized). The more serious problem is the size of the error.
 
 ## Interaction terms
 
-We have not yet tried adding interaction terms in our multiple regression model. This is another avenue to explore. Let's sidestep our multi-level factors and add interaction terms for our loan amount variable and our male indicator variable, the latter of which was included in our multiple regression model above. Recall that we saw an interesting relationship between the male indicator variable and the repayment rate, where non-male groups tended to take out smaller loans and therefore tended to be associated with lower repayment rates, even though for high loan amounts, non-male groups repaid at a higher rate. Does this relationship express itself in an interaction term?
+We have not yet tried adding interaction terms to our multiple regression model. This is another avenue to explore. Let's sidestep our multi-level factors and add interaction terms for our loan amount variable and our male indicator variable, the latter of which was included in our multiple regression model above. Recall that we saw an interesting relationship between the male indicator variable and the repayment rate, where non-male groups tended to take out smaller loans and therefore tended to be associated with lower repayment rates, even though for high loan amounts, non-male groups repaid at a higher rate. Does this relationship express itself in an interaction term?
 
 ```{r, warning=FALSE, message=FALSE}
 glm.loan_amount.interact.fit = glm(r.rate ~ terms.loan_amount*b.male, 
@@ -196,7 +194,7 @@ glm.loan_amount.interact.preds = predict(glm.loan_amount.interact.fit, loans.mb.
 (mean((glm.loan_amount.interact.preds - loans.mb.test$r.rate)^2))^.5
 ```
 
-The error is 3.54 USD per day -- the same ballpark, in other words.
+The error is 3.54 USD per day -- the same ballpark, in other words. Even if the interaction is significant, it doesn't help us.
 
 ## Continent over country?
 
@@ -210,7 +208,7 @@ glm.loan_amount.cont.preds = predict(glm.loan_amount.cont.fit, loans.mb.test,
 (mean((glm.loan_amount.cont.preds - loans.mb.test$r.rate)^2))^.5
 ```
 
-This is an improvement over the simple linear model, but the 22-feature model -- which did, in fact, inspect both countries and continents -- does better.
+This is an improvement over the simple linear model, but the 22-feature model -- which did, in fact, comb through both countries and continents -- does better.
 
 ## Summary
 
