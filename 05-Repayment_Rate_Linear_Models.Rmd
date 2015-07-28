@@ -16,8 +16,6 @@ library(glmnet)
 
 loans.mb = jsonlite::fromJSON("loans_mb.json")
 loans.mb = na.omit(loans.mb) # just to be safe
-loans.sb = jsonlite::fromJSON("loans_sb_sample.json")
-loans.sb = na.omit(loans.sb) # just to be safe
 ```
 
 ## Simple linear models
@@ -42,10 +40,10 @@ Our coefficient and intercept are both significant. For future comparison, we no
 ```{r, warning=FALSE, message=FALSE}
 glm.loan_amount.preds = predict(glm.loan_amount.fit, loans.mb.test,
                                 type="response")
-mean((glm.loan_amount.preds - loans.mb.test$r.rate)^2)^.5
+(mean((glm.loan_amount.preds - loans.mb.test$r.rate)^2))^.5
 ```
 
-So the root MSE is about 3.5 USD per day. Given that the mean repayment rate in our test set is 8.11 USD per day, this is not very good.
+So the root MSE is about 3.55 USD per day. Given that the mean repayment rate in our test set is 8.11 USD per day, this is not very good.
 
 Do the model plots reveal anything of note?
 
@@ -64,71 +62,67 @@ glm.loan_amount.log.fit = glm(log(r.rate) ~ terms.loan_amount, data=loans.mb.tra
 summary(glm.loan_amount.log.fit) 
 ```
 
-Both coefficients in the model are significant, and the AIC is much better: 12,360.
+Both coefficients in the model are significant, and the AIC is much better: 12,360. However, the AIC here is the lucky beneficiary of a log transformation and thus can't be compared to the AIC above. A better comparison is between the root MSEs.
 
 ```{r, warning=FALSE, message=FALSE}
 glm.loan_amount.log.preds = predict(glm.loan_amount.log.fit, loans.mb.test,
                                 type="response")
-exp(mean((glm.loan_amount.log.preds - log(loans.mb.test$r.rate))^2))^.5
+(mean((exp(glm.loan_amount.log.preds) - loans.mb.test$r.rate)^2))^.5
 ```
 
-Our root MSE (when transformed back to a rate) is 1.11 USD per day. This is better, but it still means that for the median loan amount -- 1250 USD in this group, which the models predicts would repay at a rate of 4.04 USD per day -- our guess at the repayment date could very well be off by $(1250/(4.04-1.11)) - (1250/4.04) = 117$ days.
-
-Granted, though, this is an improvement over the pure linear model. Do we see a difference in the summary plots?
+Our root MSE (when transformed back to a rate) is 5.50 USD per day. This is markedly worse! Do we see a difference in the summary plots?
 
 ```{r, warning=FALSE, message=FALSE}
 plot(glm.loan_amount.log.fit)
 ```
 
-The QQ plot looks healthier, and the variance of the residuals no longer seem dependent on the loan amount; however, the residuals plot has picked up some new structure. Clearly, our model is missing something. Before we try anything more complex than a simple linear model, let's nail down a reasonable measure of our error using cross-validation. 
+The QQ plot looks healthier, but the other plots, particularly the residuals plot, have picked up some new structure. Clearly, a log-transformation is not the way to go. Before we try anything more complex than a simple linear model, let's nail down a reasonable measure of our error using cross-validation. 
 
 ```{r, warning=FALSE, message=FALSE}
 # cross-validation
 set.seed(1)
-glm.loan_amount.log.cv = cv.glm(loans.mb.test, glm.loan_amount.log.fit, K=10)
-exp(glm.loan_amount.log.cv$delta[2])^.5
+glm.loan_amount.cv = cv.glm(loans.mb.test, glm.loan_amount.fit, K=10)
+(glm.loan_amount.cv$delta[2])^.5
 ```
 
-The cross-validation error for repayment rate in our log-linear model (after transformation) holds steady at 1.11 USD per day.
+The cross-validation error for repayment rate is 3.48 USD per day, a little lower than our original estimate.
 
 ## Polynomial regression
 
-One idea for remedying the sigmoid-like structure in the residuals plot is to try a polynomial fit on our loan amount variable.
+One idea for remedying the structure in the residuals plot is to try a polynomial fit on our loan amount variable.
 
 ```{r, warning=FALSE, message=FALSE}
-glm.loan_amount.log.poly.fit = glm(log(r.rate) ~ poly(terms.loan_amount, 3, raw=T), 
+glm.loan_amount.poly.fit = glm(r.rate ~ poly(terms.loan_amount, 3, raw=T), 
                                    data=loans.mb.train) 
-summary(glm.loan_amount.log.poly.fit) 
+summary(glm.loan_amount.poly.fit) 
 ```
 
-Not surprisingly, the AIC gets better: 9,722. How about the root MSE?
+Given that added flexibility we have given the model, it's not surprising that the AIC is better than it was for our simple linear regression. How about the root MSE?
 
 ```{r, warning=FALSE, message=FALSE}
-glm.loan_amount.log.poly.preds = predict(glm.loan_amount.log.poly.fit, loans.mb.test,
+glm.loan_amount.poly.preds = predict(glm.loan_amount.poly.fit, loans.mb.test,
                                 type="response")
-exp(mean((glm.loan_amount.log.poly.preds - log(loans.mb.test$r.rate))^2))^.5
+(mean((glm.loan_amount.poly.preds - loans.mb.test$r.rate)^2))^.5
 ```
 
-Our root MSE is 1.08 USD per day. This is better than our log-linear model -- not surprising, since we've given the model some more flexibility. Is this borne out when we cross-validate? 
+Our root MSE is 3.49 USD per day, which is comparable to the cross-validation error for the linear model. Is this borne out when we cross-validate on the polynomial fit? 
 
 ```{r, warning=FALSE, message=FALSE}
 # cross-validation
 set.seed(1)
-glm.loan_amount.log.poly.cv = cv.glm(loans.mb.test, glm.loan_amount.log.poly.fit, K=10)
-exp(glm.loan_amount.log.poly.cv$delta[2])^.5
+glm.loan_amount.poly.cv = cv.glm(loans.mb.test, glm.loan_amount.poly.fit, K=10)
+(glm.loan_amount.poly.cv$delta[2])^.5
 ```
 
-The error is 1.09 USD per day. Another improvement, but still a likely source of major error when predicting the repayment date.
-
-The residuals plot and QQ plot are now mostly well-behaved, though the fit in the scale-location plot tilts down for higher fitted values:
+The error drops to 3.42 USD per day -- a slight improvement -- although the residuals plot and QQ plot are still not what we would hope.
 
 ```{r, warning=FALSE, message=FALSE}
-plot(glm.loan_amount.log.poly.fit)
+plot(glm.loan_amount.poly.fit)
 ```
 
 ## Multiple regression
 
-We now wish to consider additional features. In order of increasing complexity, these features are:
+Given the relatively high error of these single-variable regression models, we now wish to consider additional features. In order of increasing complexity, these features are:
 
 * b.male (dichotomous)
 * b.num (continuous)
@@ -146,13 +140,13 @@ loans.mb.hc = loans.mb[hc_vec, ]
 We will allow up to 100 variables -- the high number is due to the fact that each country (minus 1) and each sector (minus 1) will become an indicator variable. We'll then see how each of the best p-dimensional model fares against all the best models in features spaces of other dimensions.
 
 ```{r, error=FALSE, warning=FALSE}
-fwd.fit = regsubsets(log(r.rate) ~ terms.loan_amount + b.male + b.num +
+fwd.fit = regsubsets(r.rate ~ terms.loan_amount + b.male + b.num +
                        location.country_code + sector, 
                      data=loans.mb.train, nvmax=100, method="forward")
 #summary(fwd.fit)
 ```
 
-We omit the painfully long summary read-out. The summary of the summary is: (1) loan amount is almost the most important feature; (2) the male indicator variables sneaks in as the 9th most important variable in most d >= 9 models, while the borrower number variables arrives 12th; (3) the intervening variable spots are occupied by various countries' indicator variables; (4) most sector variables, which we know don't explain much in the way of variance, don't show up untl we have models with d >= 30.
+We omit the painfully long summary read-out. The summary of the summary is: (1) loan amount is almost always the most important feature; (2) the male indicator variables sneaks in as a feature for 13-feature models, while the borrower number variables doesn't arrive until there are 49-feature models; (3) the most important sector feature is Retail, which shows up starting with 19-feature models.
 
 The object that `regsubsets` returns allows us to look at the BIC value (a close cousin of the AIC) for each best-in-class model. The BIC is essentially a way of penalizing models as they add more predictors. Other means 
 
@@ -164,66 +158,67 @@ ggplot(data=fit.bic, aes(x=x, y=y)) + geom_line() +
 which.min(summary(fwd.fit)$bic)
 ```
 
-The model with 29 variables has the lowest BIC. The curve has almost bottomed out, though, by d = 20 variables, so to reduce complextiy, we'll take the 20-variable model. What model did we just buy ourselves?
+The model with 27 variables has the lowest BIC, though the curve has essentially bottomed out by d = 22 variables. To slightly reduce complexity, we'll take the 22-variable model. What model did we just buy ourselves?
 
 ```{r, error=FALSE, warning=FALSE}
-coef(fwd.fit, 20)
+coef(fwd.fit, 22)
 ```
 
-In addition to all the numerical variables, we have the Retail sector variables and a smattering of country variables. What error does this model produce?
+In addition to the loan amount and the male indicator variable, we have the Retail sector variable and about 20 country variables. What error does this model produce?
 
 ```{r, error=FALSE, warning=FALSE}
-fwd.test = model.matrix(log(r.rate) ~ ., data=loans.mb.test)
-coef.20 = coef(fwd.fit, id=20)
-fwd.pred = fwd.test[, names(coef.20)] %*% coef.20
-fwd.fit.mse = mean((log(loans.mb.test$r.rate) - fwd.pred)^2)
-exp(fwd.fit.mse)^.5
+fwd.test = model.matrix(r.rate ~ ., data=loans.mb.test)
+coef.22 = coef(fwd.fit, id=22)
+fwd.pred = fwd.test[, names(coef.22)] %*% coef.22
+
+(mean((loans.mb.test$r.rate - fwd.pred)^2))^.5
 ```
 
-We have an error of 1.07 USD per day, comparable to our simple log-linear model, which had a (cross-validated) error of 1.11 days.
+We have a root MSE of 2.94 USD per day, a definite improvement over the 3.42 USD per day that our polynomial regression on the loan amount got us. Although this feature comes at the cost of model complexity, many of these additional features can be interpreted just as a single country feature (before each country was dichotomized). The bigger problem, one could argue is the size of the error.
 
 ## Interaction terms
 
-We have not yet tried adding interaction terms in our multiple log-linear regression model. This is another avenue to explore. Let's sidestep our multi-level factors and add interaction terms for our loan amount variable and our male indicator variable. Remember, we saw an interesting relationship between the male indicator variable and the repayment rate, where non-male groups tended to take out smaller loans and therefore tended to be associated with lower repayment rates, even though for high loan amounts, non-male groups repaid at a higher rate. Does this relationship express itself in an interaction term?
+We have not yet tried adding interaction terms in our multiple regression model. This is another avenue to explore. Let's sidestep our multi-level factors and add interaction terms for our loan amount variable and our male indicator variable, the latter of which was included in our multiple regression model above. Recall that we saw an interesting relationship between the male indicator variable and the repayment rate, where non-male groups tended to take out smaller loans and therefore tended to be associated with lower repayment rates, even though for high loan amounts, non-male groups repaid at a higher rate. Does this relationship express itself in an interaction term?
 
 ```{r, warning=FALSE, message=FALSE}
-glm.loan_amount.interact.fit = glm(log(r.rate) ~ terms.loan_amount*b.male, 
+glm.loan_amount.interact.fit = glm(r.rate ~ terms.loan_amount*b.male, 
                               data=loans.mb.train) 
 summary(glm.loan_amount.interact.fit)
 ```
 
 The coefficient for `terms.loan_amoutn:b.maleTRUE` is significant and negative. This means that as the loan amount increases, the interaction term will increasingly pull down the rate when the indicator variable is 1 (i.e. when there is a male in the group). Around 2072 USD, the interaction term will eclipse the coefficient for the indicator term, and female groups will have a lower repayment rate.
-terms.loan_amount:b.maleTRUE -1.807e-04  8.486e-06  -21.29   <2e-16 ***
 
 This is interesting, but how is our error affected?
 
 ```{r, warning=FALSE, message=FALSE}
 glm.loan_amount.interact.preds = predict(glm.loan_amount.interact.fit, loans.mb.test,
                                 type="response")
-exp(mean((glm.loan_amount.interact.preds - log(loans.mb.test$r.rate))^2))^.5
+(mean((glm.loan_amount.interact.preds - loans.mb.test$r.rate)^2))^.5
 ```
 
-The error is 1.11 USD per day -- the same ballpark, in other words.
+The error is 3.54 USD per day -- the same ballpark, in other words.
 
 ## Continent over country?
 
 Is it possible that using continent indicator variables -- rather than indicators for each country -- will help? We'll step quickly through the same routine:
 
 ```{r, warning=FALSE, message=FALSE}
-glm.loan_amount.cont.fit = glm(log(r.rate) ~ terms.loan_amount + continent, 
+glm.loan_amount.cont.fit = glm(r.rate ~ terms.loan_amount + continent, 
                               data=loans.mb.train) 
 glm.loan_amount.cont.preds = predict(glm.loan_amount.cont.fit, loans.mb.test,
                                 type="response")
-exp(mean((glm.loan_amount.cont.preds - log(loans.mb.test$r.rate))^2))^.5
+(mean((glm.loan_amount.cont.preds - loans.mb.test$r.rate)^2))^.5
 ```
 
-No, we're still hovering around an error of 1.09 days.
+This is an improvement over the simple linear model, but the 22-feature model -- which did, in fact, inspect both countries and continents -- does better.
 
 ## Summary
 
 What have we learned?
 
-* For the multiple borrower class, if we log-transform the response variable, we are able to predict a loan's repayment rate to a reasonable approximation by regressing on the loan amount alone. The root MSE is 1.11 USD per day.  
-* Adding more features, higher-order terms, or interaction terms helped our residual plots and QQ plots look better, but they didn't help our error much. The various models seem to plateau around 1.09 USD per day, perhaps because there are inherently non-linear phenomena in our data. 
+* For the multiple borrower class, a simple linear regression on the loan amount yields a root MSE of 3.48 USD per day. 
+* Adding higher-order terms slightly improved our error, but not much. An interaction term between loan amount and the male indicator variable did not help.
+* A 22-feature model that used some 20 countries brought the root MSE down to 2.94 USD per day.
+* In all of the residuals plot we saw, there was some unwanted structure -- most notably, the funnel shape in the main simple regression model. The fact that the variance in the error increases for higher loan amounts is, in itself, not a bad thing. Because we are modeling a rate, this problem comes out in the wash. However, the presence of this structure indicates that we are abusing the assumptions made by linear models and that we should try different methods. 
 
-Next, we look at tree-based models for the multiple-borrower class, in order to see if we can bring our error down.
+Next, we look at tree-based methods for the multiple-borrower class, in order to see if we can find a more suitable model and bring our error down in the process.
