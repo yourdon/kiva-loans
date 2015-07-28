@@ -456,7 +456,6 @@ We can re-examine our correlation matrix with our rates:
 
 ```{r, warning=FALSE, error=FALSE}
 pairs.panels(loans[, c(8, 17, 18, 14, 16, 19:22)])
-#ggsave(filename="rate_scatterplot_matrix.png")
 ```
 
 **On the lender side**: The meager correlations we saw earlier between (numerical) loan features and pipeline features vanish when we look at rates. Neither the gender composition of the borrowing group nor the number of borrowers appears related to how quickly a loan is funded or how much each individual gives. The loan amount is also uncorrelated with these rates. (Note that if we remove loans that fall in the unstable upper quartile of funding rates, the correlation between gender and funding rate reappears, weakly, at r = 0.16.) One new relationship that we do see is the weak positive correlation between borrower rate and funding time, but when we compare borrower rate to funding *rate*, there is no correlation. The likely explanation here is that a higher borrower rate (more money per borrower) tends to mean a higher loan amount and thus a longer funding time; but since there is no relationship between loan amount and funding rate, the effect disappears when we consider rates.
