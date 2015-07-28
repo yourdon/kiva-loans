@@ -1,0 +1,137 @@
+06 Kiva Loans: Tree and Forest Models
+=====================================
+
+Using a simple linear regression model of a log-transformed response, we were able to get our root MSE for the repayment rate on a loan to 3.48 USD per day. By stuffing 22 features into a multiple regression model, we brought the error down to 2.92 USD per day. However, this improvement in the error came at the cost of added model complexity, and it didn't take care of some non-linearities in our data.
+
+In this section, we explore whether tree-based models can do a better job of treating these non-linearities without overfitting on the training set.
+
+```{r, warning=FALSE, message=FALSE}
+library(jsonlite)
+library(ggplot2)
+library(tree)
+library(randomForest)
+
+loans.mb = jsonlite::fromJSON("loans_mb.json")
+loans.mb = na.omit(loans.mb) # just to be safe
+
+# trees need factors
+loans.mb$location.country_code = as.factor(loans.mb$location.country_code)
+loans.mb$continent = as.factor(loans.mb$continent)
+loans.mb$sector = as.factor(loans.mb$sector)
+```
+
+## Decision trees
+
+We'll begin with a tree that has access to all features in our data set. The constructor in the `tree` library can't accept factors with more than 32 levels, so we will use the continent variable instead of the country variable.
+
+```{r, warning=FALSE, message=FALSE}
+# create test and training sets
+set.seed(1)
+mb.train.index = sample(dim(loans.mb)[1], dim(loans.mb)[1]/2) 
+# 7 is b.female, 10 is b.male
+loans.mb.train = loans.mb[mb.train.index, c(1, 4, 6, 7, 8, 12)]
+loans.mb.test = loans.mb[-mb.train.index, c(1, 4, 6, 7, 8, 12)]
+
+loans.mb.tree = tree(r.rate ~ ., loans.mb.train)
+summary(loans.mb.tree)
+```
+
+From the summary, we can see that the tree used only two features: loan amount and continent. In a way, this result mirrors our finding in the multiple regression setting, namely that loan amount is the most important feature, followed by location-based features. At the same time, it is surprising that a more flexible method, which can be eager to overfit, didn't fall prey to that vice here. Perhaps the conservative result of this liberal method is an indication that the other variables add only noise to a model of the repayment rate. 
+
+Since there are only two features at play and only six terminal nodes, we can plot this simple tree to see what it looks like:
+
+```{r, warning=FALSE, message=FALSE}
+plot(loans.mb.tree)
+text(loans.mb.tree, pretty=0)
+```
+
+Given what we saw in our exploratory analysis, this trees makes a good deal of sense. In particular, the lower repayment rate for Asian countries on high-value loans is something that was evident in one of our plots.
+
+We can use cross-validation to determine whether this is, in fact, the best possible decision tree.
+
+```{r, warning=FALSE, message=FALSE}
+loans.mb.tree.cv = cv.tree(loans.mb.tree)
+plot(loans.mb.tree.cv$size, loans.mb.tree.cv$dev, type="b")
+```
+
+Since the cross-validation method returned the same tree, and a pretty shallow one at that, it's unlikely that pruning the tree will yield a different end result. The question now is whether, even though we are still using only one feature, the non-linear branch points introduced by the tree leads to a lower error.
+
+```{r, warning=FALSE, message=FALSE}
+loans.mb.tree.pred = predict(loans.mb.tree, newdata=loans.mb.test)
+(mean((loans.mb.tree.pred - loans.mb.test$r.rate)^2))^.5
+```
+
+The error is 3.63, which is quite a bit worse than the multiple linear regression, and slightly worse than even the simple regression. What's going on here? One hypothesis is that the repayment rate *is* fairly linear in the loan amount and the continent feature is too much of aggregate view to be useful, so on *this feature set*, a regression is a more suitable choice than a tree. If we more to a more feature-rich space, using country instead of continent, we might have reason to hope that a tree-based method -- which can better exploit the non-linearities that lurk in this space -- will outperform a linear method.  
+
+## Random forests
+
+The `randomForest` package can handle factors with more than 32 levels, so we will set aside the `tree` package. Of course, with a 50-factor level, we are in danger of overfitting. Fortunately, avoiding overfitting is exactly what random forests were designed to do. By aggregating trees that are built from a random subset of the feature space, we avoid constructing a model with a high variance. A related approach is bagging, but because bagging produces correlated trees, the resulting aggregreation may still have a high variance out of bag. 
+
+Let's see how a random forest performs.
+
+```{r, warning=FALSE, message=FALSE}
+# add country
+loans.mb.train.rf = loans.mb[mb.train.index, c(1, 4, 6, 7, 8, 3)]
+loans.mb.test.rf = loans.mb[-mb.train.index, c(1, 4, 6, 7, 8, 3)]
+
+loans.mb.forest = randomForest(r.rate ~ ., data=loans.mb.train.rf, 
+                              mtry=3, importance=TRUE)
+
+loans.mb.forest.pred = predict(loans.mb.forest, newdata=loans.mb.test.rf)
+(mean((loans.mb.forest.pred - loans.mb.test.rf$r.rate)^2))^.5
+```
+
+This is our best result yet: an error of 2.51 USD per day. We can look at the variable importances in order to get a gauge for what the random forest is focused on.
+
+```{r, warning=FALSE, message=FALSE}
+importance(loans.mb.forest)
+varImpPlot(loans.mb.forest)
+```
+
+We see two different measures of importance: (1) the percent increase in MSE that occurs when a certain feature is *removed* from the model, and (2) the increase in node purity when that feature is removed from the model. (Node purity is a similarity metric that essentially describes the variance of the response within a leaf of the aggregate tree.) Note that the loan amount is the best feature for increasing node purity while country is the best feature for reducing the MSE. This seeming incongruity reflects the linear (or well-behaved) relationship of loan amount to repayment rate and the non-linear (but still information-rich) relationship of country to repayment rate. Branching on the loan amount tends to produce leaves that are similar to one another; it is a more reliable, stable, and linear feature. By another measure, however, the borrower's country is more useful. The random forest takes advantage of both.
+
+We can look at a plot of the residuals to get a sense for the shape of the error profile.
+
+```{r, warning=FALSE, message=FALSE}
+rf.preds = unlist(as.list(loans.mb.forest.pred))
+residuals = rf.preds - loans.mb.test.rf$r.rate
+qplot(x=rf.preds, y=residuals) + geom_point(color="blue") +
+  xlab("Predicted values") + ylab("Residuals")
+```
+
+Evidently, the model is underpredicting the true reapyment rate for a handful of loans. Doubtless, this handful of values is a big source of the remaining error. As a quick experiment, what happens to the error if we remove loans (from both the training and the test set) whose repayment rates are in the upper decile?
+
+```{r, warning=FALSE, message=FALSE}
+quantile(loans.mb$r.rate, seq(0, 1, 0.1))
+
+loans.mb.train.rf.low = loans.mb.train.rf[loans.mb.train.rf$r.rate<20,]
+loans.mb.test.rf.low = loans.mb.test.rf[loans.mb.test.rf$r.rate<20,]
+
+loans.mb.forest.low = randomForest(r.rate ~ ., data=loans.mb.train.rf.low, 
+                              mtry=3, importance=TRUE)
+
+loans.mb.forest.pred.low = predict(loans.mb.forest.low, 
+                                   newdata=loans.mb.test.rf.low)
+(mean((loans.mb.forest.pred.low - loans.mb.test.rf.low$r.rate)^2))^.5
+```
+
+The error drops to 1.55 USD per day. The residuals plot now looks like this:
+
+```{r, warning=FALSE, message=FALSE}
+rf.preds.low = unlist(as.list(loans.mb.forest.pred.low))
+residuals.low = rf.preds.low - loans.mb.test.rf.low$r.rate
+qplot(x=rf.preds.low, y=residuals.low) + geom_point(color="blue") +
+  xlab("Predicted values - lower 90%") + ylab("Residuals")
+```
+
+This tells us that the model is doing fairly well for the main mass of loans, even as it struggles with very high repayment rates. We could try to characterize these loans to see if we can create new features for our random forest to work with, but we will leave that project for later.
+
+## Summary
+
+What did we learn in this part of the analysis?
+
+* In moving from a multiple regression model to a decision tree that used only the loan amount and the continent, our root MSE increased from 2.94 USD per day to 3.63 USD per day.
+* However, when we tried a random forest and took advantage of the country variable, our root MSE dropped to 2.55 USD. The random forest's variable importance measure told us that the model was trying to incorporate two disparate profiles of information: the smoother, more pure loan amount and the jumpier, but still information-rich country variable. 
+* Examining the residuals plot for the random forest model, we saw that when the model failed badly, it tended to under-predict the repayment rate, sometimes drastically. When we excluded this upper decile from the analysis, the root MSE of the random forest dropped to 1.51 USD and the residuals plot looked healthier, suggesting that the model is only struggling with extremes. 
+
+Before considering how to extending the model to deal with these extremes, we will return to the single-borrower class, using the results from our analysis of the (comparably simpler) multiple-borrower class to speed things along.
