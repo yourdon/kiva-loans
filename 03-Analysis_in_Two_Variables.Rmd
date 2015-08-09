@@ -164,7 +164,7 @@ getPalette = colorRampPalette(brewer.pal(11, "Spectral"))
 num_sectors = length(unique(hc_loans$sector))
 
 ggplot(data=hc_loans, aes(x=location.country_code, fill=sector)) + 
-  geom_histogram(position="fill") + 
+  geom_bar(position="fill") + 
   scale_fill_manual(values = getPalette(num_sectors)) + 
   xlab("Country") + ylab("Frequency") + 
   ggtitle("Loan frequency by country and sector") +
@@ -181,7 +181,7 @@ top_sectors = c("Agriculture", "Food", "Retail")
 top_sector_loans = hc_loans[hc_loans$sector %in% top_sectors, ]
 
 ggplot(data=top_sector_loans, aes(x=location.country_code, fill=sector)) + 
-  geom_histogram(position="fill") + 
+  geom_bar(position="fill") + 
   scale_fill_manual(values = getPalette(3)) + 
   xlab("Country") + ylab("Frequency") +
   ggtitle("Loan frequency by country and sector") +

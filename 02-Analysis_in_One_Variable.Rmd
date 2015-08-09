@@ -68,7 +68,7 @@ paid = loans[loans$status == "paid", ]
 
 ```{r, warning=FALSE, message=FALSE}
 ggplot(data=paid, aes(x=as.factor(paid[,3]))) + 
-  geom_histogram(fill="lightblue") + labs(x="sector") +
+  geom_bar(fill="lightblue") + labs(x="sector") +
   ggtitle("Loans by sector") +
   theme(axis.text.x=element_text(angle=90,hjust=1,vjust=0.5))
 #ggsave(filename="Loans_by_sector.png")
@@ -94,7 +94,7 @@ We see a lot of different partners with a large variance in their loan activity.
 ## Lender count
 
 ```{r, warning=FALSE, message=FALSE}
-ggplot(data=paid, aes(x=paid[,5])) + geom_bar(fill="lightblue") +
+ggplot(data=paid, aes(x=paid[,5])) + geom_histogram(fill="lightblue") +
   labs(x="Lender count") + ggtitle("Loans by lender count")
 summary(paid[,5])
 ```
@@ -138,7 +138,7 @@ There are only 1 or 2 languages per description as a rule. Which languages are m
 ```{r, warning=FALSE, message=FALSE}
 langs = as.data.frame(unlist(paid[,6]))
 colnames(langs) ="lang"
-ggplot(data=langs, aes(x=lang)) + geom_histogram(fill="lightblue") + 
+ggplot(data=langs, aes(x=lang)) + geom_bar(fill="lightblue") + 
   labs(x="language", title="Loan descriptions by language")
 table(as.factor(unlist(paid[,6])))
 ```
@@ -150,7 +150,7 @@ English is by far the most common, though Spanish is in the same ballpark.
 How many characters are there per description, on average?
 
 ```{r, warning=FALSE, message=FALSE}
-ggplot(data=paid, aes(x=description.avgchar)) + geom_bar(fill="lightblue") +
+ggplot(data=paid, aes(x=description.avgchar)) + geom_histogram(fill="lightblue") +
   labs(x="Average length (characters)")
 summary(paid$description.avgchar)
 ```
@@ -168,7 +168,7 @@ There doesn't seem to be anything unusual going on here. We could peek at the ra
 We have two pieces of data regarding the borrowers: their number and the fraction who are female.
 
 ```{r, warning=FALSE, message=FALSE}
-ggplot(data=paid, aes(x=b.num)) + geom_bar(fill="lightblue") +
+ggplot(data=paid, aes(x=b.num)) + geom_histogram(fill="lightblue") +
   labs(x="Number of borrowers", title="Loans by number of borrowers")
 #ggsave(filename="Loans_by_bnum.png")
 summary(paid$b.num)
@@ -179,7 +179,7 @@ Clearly, the majority of loans are going to a single borrower, but a non-negligi
 What about gender?
 
 ```{r, warning=FALSE, message=FALSE}
-ggplot(data=paid, aes(x=b.female)) + geom_bar(fill="lightblue") +
+ggplot(data=paid, aes(x=b.female)) + geom_histogram(fill="lightblue") +
   labs(x="Ratio of female borrowers", title="Loans by gender composition")
 #ggsave(filename="Loans_by_bfem.png")
 summary(paid$b.female)
@@ -192,7 +192,7 @@ Most of the loans are going to females, or all-female groups, though about 20% g
 What is the distribution of loan amounts (in USD)?
 
 ```{r, warning=FALSE, message=FALSE}
-ggplot(data=paid, aes(x=terms.loan_amount)) + geom_bar(fill="lightblue") +
+ggplot(data=paid, aes(x=terms.loan_amount)) + geom_histogram(fill="lightblue") +
   labs(x="Loan amount", title="Loans by loan amount")
 #ggsave(filename="Loans_by_loan_amount.png")
 summary(paid$terms.loan_amount)
@@ -209,7 +209,7 @@ Let's now look at the time differences between sequential steps in the pipeline:
 The `funded_timediff` variable accounts for the time difference between when a loan was posted on Kiva and when it was funded by users.
 
 ```{r, warning=FALSE, message=FALSE}
-ggplot(data=paid, aes(x=funded_timediff)) + geom_bar(fill="lightblue") +
+ggplot(data=paid, aes(x=funded_timediff)) + geom_histogram(fill="lightblue") +
   labs(x="Funding time")
 summary(paid$funded_timediff)
 ```
@@ -224,7 +224,7 @@ These are from early on in the record keeping. Perhaps they were the first loans
 
 ```{r}
 newpaid = paid[paid$funded_timediff > 0, ]
-ggplot(data=newpaid, aes(x=funded_timediff)) + geom_bar(fill="lightblue") +
+ggplot(data=newpaid, aes(x=funded_timediff)) + geom_histogram(fill="lightblue") +
   labs(x="Funding time", title="Loans by funding time")
 #ggsave(filename="Loans_by_funding_time.png")
 summary(newpaid$funded_timediff)
@@ -239,7 +239,8 @@ There is a long tail of loans that take 10 days or longer to get funded (though 
 The `disbursal_timediff` variable accounts for the time difference between when a loan was funded by lenders and when it was disbursed to borrowers. We observed earlier that many of the disbursal time differences were negative, indicating that the funds had been "pre-disbursed" -- that is, given to borrowers before they were funded by Kiva lenders, due to urgent needs. That presents a wrinkle for any sort of supply chain analysis. Nevertheless, let's take a look at the distribution for this variable.
 
 ```{r, warning=FALSE, message=FALSE}
-ggplot(data=newpaid, aes(x=disbursed_timediff)) + geom_bar(fill="lightblue") +
+ggplot(data=newpaid, aes(x=disbursed_timediff)) + 
+  geom_histogram(fill="lightblue") +
   labs(x="Disbursal time", title="Loans by disbursal time")
 summary(newpaid$disbursed_timediff)
 ```
@@ -251,7 +252,8 @@ So it seems that *most* loans were disbursed before they were posted, not just s
 The `paid_timediff` variable accounts for the time difference between when a loan was disbursed to a borrower and when it was repaid. 
 
 ```{r, warning=FALSE, message=FALSE}
-ggplot(data=newpaid, aes(x=paid_timediff)) + geom_bar(fill="lightblue") +
+ggplot(data=newpaid, aes(x=paid_timediff)) + 
+  geom_histogram(fill="lightblue") +
   labs(x="Repayment time", title="Loans by repayment time")
 #ggsave(filename="Loans_by_repayment_time.png")
 summary(newpaid$paid_timediff)
